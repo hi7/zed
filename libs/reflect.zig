@@ -33,9 +33,11 @@ pub fn showType(comptime T: type, only_pub: bool) void {
                             if (decl.data.Fn.is_export) print("    export\n", .{});
                             //print("    return_type: {s}\n", .{ decl.data.Fn.return_type });
                             if(decl.data.Fn.arg_names.len > 0) {
-                                inline for (decl.data.Fn.arg_names) |arg_name| {
-                                    print("    arg_name: {s}\n", .{ arg_name });
+                                print("        arg_names(", .{});
+                                inline for (decl.data.Fn.arg_names) |arg_name, index| {
+                                    print("{s}{s}", .{ arg_name, if (index < decl.data.Fn.arg_names.len - 1) ", " else "" });
                                 }
+                                print(")\n", .{});
                             }
                         },
                     }
