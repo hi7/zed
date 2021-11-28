@@ -1,2 +1,2 @@
 # zed
-draw colored text in terminal
+Display pressed key codes in terminal
