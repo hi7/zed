@@ -32,15 +32,23 @@ pub fn setCursor(x: usize, y: usize, allocator: *std.mem.Allocator) void {
 }
 
 var orig_mode: bits.termios = undefined;
-pub fn rawMode() void {
+/// timeout for read(): x/10 seconds, null means wait forever for input
+pub fn rawMode(timeout: ?u8) void {
     orig_mode = std.os.tcgetattr(std.os.STDIN_FILENO) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcgetattr failed!");
     };
     var raw = orig_mode;
     assert(&raw != &orig_mode); // ensure raw is a copy    
-    raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON));
-    //raw.lflag &= ~(@as(tcflag, bits.ICANON) | @as(tcflag, bits.ECHO) | @as(tcflag, bits.IEXTEN));
+    raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
+         | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
+    raw.oflag &= ~(@as(tcflag, bits.OPOST));
+    raw.cflag &= ~(@as(tcflag, bits.CS8));
+    raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON) | @as(tcflag, bits.IEXTEN) | @as(tcflag, bits.ISIG));
+    if(timeout != null) {
+        raw.cc[bits.VMIN] = 0; // add timeout for read()
+        raw.cc[bits.VTIME] = timeout.?;// x/10 seconds
+    } 
     std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, raw) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcsetattr failed!");

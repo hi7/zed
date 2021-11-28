@@ -16,7 +16,7 @@ pub fn main() anyerror!void {
     term.write("key hex codes:              exit: 'q'");
     term.setAttributesMode(null, Scope.light_forground, Color.red, Scope.background, Color.black, allocator);
 
-    term.rawMode();
+    term.rawMode(25);
 
     var buf: [4]u8 = undefined;
     while(buf[0] != 'q') {
