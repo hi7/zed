@@ -68,5 +68,4 @@ pub fn showType(comptime T: type, only_pub: bool) void {
 
 test "reflect" {
     showType(std.build, true);
-    //showType(std.build.StandardTargetOptionsArgs, true);
 }
