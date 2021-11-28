@@ -4,14 +4,17 @@ const stdin = std.io.getStdIn();
 const print = std.debug.print;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const Allocator = *std.mem.Allocator;
+const Mode = term.Mode;
+const Color = term.Color;
+const Scope = term.Scope;
 
 pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
     term.clearScreen();
     term.cursorHome();
-    term.setAttributeMode(term.underscore, term.red, null, allocator);
+    term.setAttributeMode(Mode.underscore, Color.red, null, allocator);
     term.write("key codes:              exit: 'q'");
-    term.setAttributeMode(null, null, term.black, allocator);
+    term.setAttributeMode(null, null, Color.black, allocator);
 
     term.rawMode();
 
@@ -21,7 +24,7 @@ pub fn main() anyerror!void {
         printKeyCodes(buf, len, 12, 0, allocator);
     }
 
-    term.setAttributeMode(term.reset, null, null, allocator);
+    term.setAttributeMode(Mode.reset, null, null, allocator);
     term.restoreMode();
     term.setCursor(0, 2, allocator);
 }
