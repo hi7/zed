@@ -54,14 +54,14 @@ pub fn setCursor(x: usize, y: usize, allocator: *std.mem.Allocator) void {
 }
 
 var orig_mode: bits.termios = undefined;
-pub fn echoOff() void {
+pub fn rawMode() void {
     orig_mode = std.os.tcgetattr(std.os.STDIN_FILENO) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcgetattr failed!");
     };
     var raw = orig_mode;
     assert(&raw != &orig_mode); // ensure raw is a copy    
-    raw.lflag &= ~(@as(tcflag, bits.ECHO));
+    raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON));
     //raw.lflag &= ~(@as(tcflag, bits.ICANON) | @as(tcflag, bits.ECHO) | @as(tcflag, bits.IEXTEN));
     std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, raw) catch |err| {
         print("Error: {s}\n", .{err});
