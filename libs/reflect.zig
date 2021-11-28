@@ -65,3 +65,8 @@ pub fn showType(comptime T: type, only_pub: bool) void {
         .EnumLiteral => print("\n", .{}),
     }
 }
+
+test "reflect" {
+    showType(std.build, true);
+    //showType(std.build.StandardTargetOptionsArgs, true);
+}

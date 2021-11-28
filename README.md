@@ -1,2 +1,2 @@
 # zed
-Simple zig reflection experiment
+draw colored text in terminal

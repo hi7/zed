@@ -1,8 +1,8 @@
 const std = @import("std");
 const reflect = @import("reflect");
 const io = std.io;
-const File = std.fs.File;
 const stdin = std.io.getStdIn();
+const assert = std.debug.assert;
 
 const ESC: u8 = '\x1B';
 
@@ -23,35 +23,64 @@ const magenta = '5';
 const cyan = '6';
 const white = '7';
 
-const clear_screen = "\x1b[2J";
-const cursorhome = "\x1b[H";
-
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() anyerror!void {
-    //io.Writer(File, WriteError, write);
-    //io.getStdOut().writer().print("@TypeOf(std.debug) = {s}\n", .{ @TypeOf(std.debug)} ) catch return;
-    //reflect.showType(io.Writer, true);
-    write(clear_screen);
-    write(cursorhome);
+    try clearScreen();
+    try cursorHome();
     try setAttributeMode(underscore, red, white);
     write("white background ");
     try setAttributeMode(null, yellow, black);
     write("black background\n");
     try setAttributeMode(reset, null, null);
-    write("\x1b[0;17H");
-    var buf: [40]u8 = undefined;
-    sdt.fs.
 
+    try echoOff();
+    try setCursor(34, 0);
 
-    while(buf[0] != 'q') {
-        const len = try stdin.reader().readUntilDelimiterOrEof(&buf, '\x1b');
-    }
-    std.debug.print("{s}", .{buf});
+    var buf: [4]u8 = undefined;
+    const len = try stdin.reader().read(&buf);
+    std.debug.print("{s}", .{buf[0..len]});
+
+    try restoreMode();
+    try clearScreen();
+    try cursorHome();
 }
 
 fn write(data: []const u8) void {
     _ = io.getStdOut().writer().write(data) catch return;
+}
+
+fn clearScreen() !void {
+    write("\x1b[2J");
+}
+fn cursorHome() !void {
+    write("\x1b[H");
+}
+fn setCursor(x: usize, y: usize) !void {
+    const out = try std.fmt.allocPrint(&gpa.allocator, "\x1b[{d};{d}H", .{ y, x });
+    defer gpa.allocator.free(out);
+    write(out);
+}
+
+const bits = std.os.linux;
+const tcflag = bits.tcflag_t;
+var orig_mode: bits.termios = undefined;
+fn echoOff() !void {
+    orig_mode = try std.os.tcgetattr(std.os.STDIN_FILENO);
+    var raw = orig_mode;
+    assert(&raw != &orig_mode); // ensure raw is a copy    
+    raw.lflag &= ~(@as(tcflag, bits.ECHO));
+    //raw.lflag &= ~(@as(tcflag, bits.ICANON) | @as(tcflag, bits.ECHO) | @as(tcflag, bits.IEXTEN));
+    try std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, raw); // .NOW
+}
+
+fn nonBlock() !void {
+    const fl = try std.os.fcntl(std.os.STDIN_FILENO, std.os.F.GETFL, 0);
+    _ = try std.os.fcntl(std.os.STDIN_FILENO, std.os.F.SETFL, fl | std.os.O.NONBLOCK);    
+}
+
+fn restoreMode() !void {
+    try std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, orig_mode); // .NOW
 }
 
 fn setAttributeMode(mode: ?u8, fg_color: ?u8, bg_color: ?u8) anyerror!void {
@@ -73,6 +102,5 @@ fn setAttributeMode(mode: ?u8, fg_color: ?u8, bg_color: ?u8) anyerror!void {
         try out.append(bg_color.?);
     }
     try out.append('m');
-    //    const out = [_]u8 { ESC, '[', mode.?, ';', '3', fg_color, ';' , '4', bg_color, 'm' };
     write(out.items);
 }
