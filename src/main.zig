@@ -1,6 +1,5 @@
 const std = @import("std");
 const term = @import("term");
-const stdin = std.io.getStdIn();
 const print = std.debug.print;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const Allocator = *std.mem.Allocator;
@@ -18,10 +17,12 @@ pub fn main() anyerror!void {
 
     term.rawMode(25);
 
-    var buf: [4]u8 = undefined;
-    while(buf[0] != 0x11) { // Ctrl-q to exit
-        const len = try stdin.reader().read(&buf);
-        printKeyCodes(buf, len, 15, 0, allocator);
+    var key: term.KeyCode = undefined;
+    while(key.code[0] != term.ctrlKey('q')) {
+        key = term.readKey();
+        if(key.len > 0) {
+            printKeyCodes(key.code, key.len, 15, 0, allocator);
+        }
     }
 
     term.setMode(Mode.reset, allocator);

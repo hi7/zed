@@ -55,6 +55,24 @@ pub fn rawMode(timeout: ?u8) void {
     };
 }
 
+pub inline fn ctrlKey(key: u8) u8 {
+    return key & 0x1f;
+}
+
+pub const KeyCode = struct {
+    code: [4]u8, len: usize
+};
+
+const stdin = std.io.getStdIn();
+pub fn readKey() KeyCode {
+    var buf: [4]u8 = undefined;
+    const len = stdin.reader().read(&buf) catch |err| {
+        print("StdIn read() failed! error: {s}", .{err});
+        return KeyCode{ .code = buf, .len = 0 };
+    };
+    return KeyCode{ .code = buf, .len = len };
+}
+
 pub fn nonBlock() void {
     const fl = std.os.fcntl(std.os.STDIN_FILENO, std.os.F.GETFL, 0) catch |err| {
         print("Error: {s}\n", .{err});
