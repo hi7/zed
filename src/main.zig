@@ -13,15 +13,15 @@ pub fn main() anyerror!void {
     term.clearScreen();
     term.cursorHome();
     term.setAttributeMode(Mode.underscore, Scope.foreground, Color.red, allocator);
-    term.write("key hex codes:              exit: 'q'");
+    term.write("key hex code:              exit: Ctrl-q");
     term.setAttributesMode(null, Scope.light_forground, Color.red, Scope.background, Color.black, allocator);
 
     term.rawMode(25);
 
     var buf: [4]u8 = undefined;
-    while(buf[0] != 'q') {
+    while(buf[0] != 0x11) { // Ctrl-q to exit
         const len = try stdin.reader().read(&buf);
-        printKeyCodes(buf, len, 16, 0, allocator);
+        printKeyCodes(buf, len, 15, 0, allocator);
     }
 
     term.setMode(Mode.reset, allocator);
