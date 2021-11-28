@@ -18,6 +18,9 @@ const OOM = "OutOfMemory";
 pub fn write(data: []const u8) void {
     _ = io.getStdOut().writer().write(data) catch @panic("StdOut write failed!");
 }
+pub fn writeByte(byte: u8) void {
+    _ = io.getStdOut().writer().writeByte(byte) catch @panic("StdOut write failed!");
+}
 
 pub fn clearScreen() void {
     write("\x1b[2J");
@@ -115,10 +118,13 @@ pub const Mode = enum(u8) { reset = '0', bright = '1', dim = '2', underscore = '
     reverse = '7', hidden = '8' };
 pub const Color = enum(u8) { black = '0', red = '1', green = '2', yellow = '3', blue = '4', 
     magenta = '5', cyan = '6', white = '7' };
-pub const Scope = enum(u8) { foreground = '3', background = '4', light_forground = '9' };
+pub const Scope = enum(u8) { foreground = '3', background = '4', light_foreground = '9' };
 const modes = 'm';
 pub fn setMode(mode: Mode, allocator: *std.mem.Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
+}
+pub fn resetMode() void {
+    write("\x1b[0m");
 }
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: *std.mem.Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
