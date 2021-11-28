@@ -91,23 +91,43 @@ pub const Color = enum(u8) { black = '0', red = '1', green = '2', yellow = '3', 
     magenta = '5', cyan = '6', white = '7' };
 pub const Scope = enum(u8) { foreground = '3', background = '4', light_forground = '9' };
 const modes = 'm';
-pub fn setAttributeMode(mode: ?Mode, fg_color: ?Color, bg_color: ?Color, allocator: *std.mem.Allocator) void {
+pub fn setMode(mode: Mode, allocator: *std.mem.Allocator) void {
+    write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
+}
+pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: *std.mem.Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
     out.append(ESC) catch @panic(OOM);
     out.append(SEQ) catch @panic(OOM);
     if(mode != null) {
         out.append(@enumToInt(mode.?)) catch @panic(OOM);
-        if(fg_color != null or bg_color != null) out.append(';') catch @panic(OOM);
+        if(scope != null and color != null) out.append(';') catch @panic(OOM);
     }
-    if(fg_color != null) {
-        out.append(@enumToInt(Scope.foreground)) catch @panic(OOM);
-        out.append(@enumToInt(fg_color.?)) catch @panic(OOM);
-        if(bg_color != null) out.append(';') catch @panic(OOM);
+    if(scope != null and color != null) {
+        out.append(@enumToInt(scope.?)) catch @panic(OOM);
+        out.append(@enumToInt(color.?)) catch @panic(OOM);
     }
-    if(bg_color != null) {
-        out.append(@enumToInt(Scope.background)) catch @panic(OOM);
-        out.append(@enumToInt(bg_color.?)) catch @panic(OOM);
+    out.append(modes) catch @panic(OOM);
+    write(out.items);
+}
+pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: *std.mem.Allocator) void {
+    var out = std.ArrayList(u8).init(allocator);
+    defer out.deinit();
+    out.append(ESC) catch @panic(OOM);
+    out.append(SEQ) catch @panic(OOM);
+    if(mode != null) {
+        out.append(@enumToInt(mode.?)) catch @panic(OOM);
+        if((scopeA != null and colorA != null) or (scopeB != null and colorB != null)) 
+            out.append(';') catch @panic(OOM);
+    }
+    if(scopeA != null and colorA != null) {
+        out.append(@enumToInt(scopeA.?)) catch @panic(OOM);
+        out.append(@enumToInt(colorA.?)) catch @panic(OOM);
+        if(scopeB != null and colorB != null) out.append(';') catch @panic(OOM);
+    }
+    if(scopeB != null and colorB != null) {
+        out.append(@enumToInt(scopeB.?)) catch @panic(OOM);
+        out.append(@enumToInt(colorB.?)) catch @panic(OOM);
     }
     out.append(modes) catch @panic(OOM);
     write(out.items);

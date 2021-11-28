@@ -12,19 +12,19 @@ pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
     term.clearScreen();
     term.cursorHome();
-    term.setAttributeMode(Mode.underscore, Color.red, null, allocator);
-    term.write("key codes:              exit: 'q'");
-    term.setAttributeMode(null, null, Color.black, allocator);
+    term.setAttributeMode(Mode.underscore, Scope.foreground, Color.red, allocator);
+    term.write("key hex codes:              exit: 'q'");
+    term.setAttributesMode(null, Scope.light_forground, Color.red, Scope.background, Color.black, allocator);
 
     term.rawMode();
 
     var buf: [4]u8 = undefined;
     while(buf[0] != 'q') {
         const len = try stdin.reader().read(&buf);
-        printKeyCodes(buf, len, 12, 0, allocator);
+        printKeyCodes(buf, len, 16, 0, allocator);
     }
 
-    term.setAttributeMode(Mode.reset, null, null, allocator);
+    term.setMode(Mode.reset, allocator);
     term.restoreMode();
     term.setCursor(0, 2, allocator);
 }
