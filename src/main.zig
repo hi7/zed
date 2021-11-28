@@ -9,9 +9,9 @@ pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
     term.clearScreen();
     term.cursorHome();
-    term.setAttributeMode(term.underscore, term.red, term.white, allocator);
-    term.write("key codes: ");
-    term.setAttributeMode(null, term.yellow, term.black, allocator);
+    term.setAttributeMode(term.underscore, term.red, null, allocator);
+    term.write("key codes:              exit: 'q'");
+    term.setAttributeMode(null, null, term.black, allocator);
 
     term.rawMode();
 
