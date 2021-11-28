@@ -21,19 +21,26 @@ pub fn main() anyerror!void {
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
-            printKeyCodes(key.code, key.len, 15, 0, allocator);
+            processKey(key, allocator);
         }
     }
 
     term.setMode(Mode.reset, allocator);
     term.restoreMode();
-    term.setCursor(0, 2, allocator);
+    term.setCursor(0, 3, allocator);
 }
 
-fn printKeyCodes(sequence: [4]u8, len: usize, x: u8, y: u8, allocator: Allocator) void {
+var x: usize = 0;
+var y: usize = 2;
+fn processKey(key: term.KeyCode, allocator: Allocator) void {
+    printKeyCodes(key.code, key.len, 15, 0, allocator);
     term.setCursor(x, y, allocator);
+}
+
+fn printKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {
+    term.setCursor(posx, posy, allocator);
     print("            ", .{});
-    term.setCursor(x, y, allocator);
+    term.setCursor(posx, posy, allocator);
     if(len == 0) return;
     if(len == 1) print("{x}", .{sequence[0]});
     if(len == 2) print("{x} {x}", .{sequence[0], sequence[1]});
