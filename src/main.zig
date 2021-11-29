@@ -61,10 +61,13 @@ fn updateSize(allocator: Allocator) void {
     }
 }
 
+fn setStatusBarMode(allocator: Allocator) void {
+    term.setAttributeMode(Mode.reverse, Scope.foreground, Color.red, allocator);
+}
 fn writeScreen(allocator: Allocator) void {
     term.clearScreen();
     term.setCursor(1, term.config.height, allocator);
-    term.setAttributeMode(Mode.reverse, Scope.foreground, Color.red, allocator);
+    setStatusBarMode(allocator);
     term.write("key code:");
     var i: u8 = 9;
     while(i<term.config.width - 12) : (i += 1) {
@@ -85,6 +88,9 @@ fn backspace() void {
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {
+    setStatusBarMode(allocator);
+    term.setCursor(posx, posy, allocator);
+    term.write("           ");
     term.setAttributesMode(Mode.reverse, Scope.light_foreground, Color.red, Scope.background, Color.white, allocator);
     term.setCursor(posx, posy, allocator);
     if(len == 0) return;
