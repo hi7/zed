@@ -40,6 +40,7 @@ pub fn main() anyerror!void {
             processKey(key, allocator);
         }
         updateSize(allocator);
+        showStatus(allocator);
     }
 
     term.resetMode();
@@ -57,6 +58,19 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
             writeChar(c, allocator);
         }
         if(c == 0x7f and cursor_x > 0) backspace();
+    } else if(key.len == 3) {
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) {
+            if(cursor_y > 2) up();
+        }
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) {
+            if(cursor_y < (height - 1)) down();
+        }
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) {
+            if(cursor_x < width) right();
+        }
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) {
+            if(cursor_x > 1) left();
+        }
     }
 }
 
@@ -120,13 +134,23 @@ inline fn menuBar(allocator: Allocator) void {
 fn fileColor(modified: bool) Color {
     return if(modified) Color.yellow else Color.white;
 }
+fn showStatus(allocator: Allocator) void {
+    setStatusBarMode(allocator);
+    term.setCursor(0, height, allocator);
+    print("L{d}:C{d} H{d}:W{d}     ", .{cursor_y - offset_y, cursor_x - offset_x, height, width});
+    term.setCursor(cursor_x, cursor_y, allocator);
+}
+
+var offset_x: u16 = 0;
+var offset_y: u16 = 1;
 inline fn statusBar(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(0, height, allocator);
     const offset = width - keyCodeOffset;
     repearChar(' ', offset);
 
-    setStatusBarMode(allocator);
+    showStatus(allocator);
+
     term.setCursor(offset, height, allocator);
     term.write("key code:            ");
 
@@ -152,8 +176,24 @@ fn writeChar(char: u8, allocator: Allocator) void {
     term.setCursor(cursor_x, cursor_y, allocator);
 }
 fn backspace() void {
-    term.write("\x1b[1D \x1b[1D");
     cursor_x -= 1;
+    term.write("\x1b[1D \x1b[1D");
+}
+fn left() void {
+    cursor_x -= 1;
+    term.write("\x1b[1D");
+}
+fn right() void {
+    cursor_x += 1;
+    term.write("\x1b[1C");
+}
+fn up() void {
+    cursor_y -= 1;
+    term.write("\x1b[1D");
+}
+fn down() void {
+    cursor_y += 1;
+    term.write("\x1b[1C");
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {

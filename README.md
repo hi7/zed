@@ -1,2 +1,2 @@
 # zed
-Display pressed key codes in terminal
+Display file contents and key codes in terminal

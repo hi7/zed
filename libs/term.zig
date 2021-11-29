@@ -73,8 +73,8 @@ pub fn cookedMode() void {
 }
 pub fn updateWindowSize() void {
     const ws = getWindowSize(io.getStdOut()) catch @panic("getWindowSize failed!");
-    config.height = @as(*const u16, &ws.ws_row).* - 1;
-    config.width = @as(*const u16, &ws.ws_col).* - 1;
+    config.height = @as(*const u16, &ws.ws_row).*;
+    config.width = @as(*const u16, &ws.ws_col).*;
 }
 fn getWindowSize(fd: std.fs.File) !os.winsize {
     while (true) {
