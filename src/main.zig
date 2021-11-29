@@ -26,7 +26,7 @@ pub fn main() anyerror!void {
         defer file.close();
         filename = args[1];
         const max = 1024*1024; // TODO use percentage of free memory
-        textbuffer = file.readToEndAlloc(allocator, max) catch @panic("readToEndAlloc(allocator, 4096) failed!");
+        textbuffer = file.readToEndAlloc(allocator, max) catch @panic("File too large!");
     }
     defer allocator.free(textbuffer);
 
@@ -158,10 +158,19 @@ inline fn statusBar(allocator: Allocator) void {
     term.setAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(false), allocator);
     term.write(filename);
 }
+const indexOf = std.mem.indexOf;
+inline fn endOfPageIndex() usize {
+    var found: u16 = 0;
+    var i: usize = 0;
+    while(found<(height-2) and i < textbuffer.len) : (i += 1) {
+        if(textbuffer[i] == '\n') found += 1;
+    }
+    return i;
+}
 inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
     term.setCursor(1, 2, allocator);
-    term.write(textbuffer);
+    term.write(textbuffer[0..endOfPageIndex()]);
     term.setCursor(cursor_x, cursor_y, allocator);
 }
 fn writeScreen(allocator: Allocator) void {
