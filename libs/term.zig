@@ -152,6 +152,9 @@ pub fn setMode(mode: Mode, allocator: *std.mem.Allocator) void {
 pub fn resetMode() void {
     write("\x1b[0m");
 }
+pub fn resetWrapMode() void {
+    write("\x1b[?7l");
+}
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: *std.mem.Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();

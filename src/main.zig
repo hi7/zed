@@ -7,17 +7,16 @@ const Mode = term.Mode;
 const Color = term.Color;
 const Scope = term.Scope;
 
-var width: u16 = undefined;
-var height: u16 = undefined;
+var width: u16 = 80;
+var height: u16 = 25;
 var x: usize = 1;
-var y: usize = 1;
+var y: usize = 2;
 const keyCodeOffset = 33;
 
 pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
     term.updateWindowSize();
     term.rawMode(5);
-    writeScreen(allocator);
 
     var key: term.KeyCode = undefined;
     while(key.code[0] != term.ctrlKey('q')) {
@@ -62,22 +61,32 @@ fn updateSize(allocator: Allocator) void {
     }
 }
 
-fn setStatusBarMode(allocator: Allocator) void {
-    term.setAttributeMode(Mode.reverse, Scope.foreground, Color.red, allocator);
+var themeColor = Color.red;
+fn setMenuBarMode(allocator: Allocator) void {
+    term.resetMode();
+    term.setAttributeMode(Mode.underscore, Scope.foreground, themeColor, allocator);
 }
-fn spaces(count: u16) void {
+fn setStatusBarMode(allocator: Allocator) void {
+    term.resetMode();
+    term.setAttributeMode(Mode.reverse, Scope.foreground, themeColor, allocator);
+}
+fn repearChar(char: u8, count: u16) void {
     var i: u8 = 0;
     while(i<count) : (i += 1) {
-        term.write(" ");
+        term.writeByte(char);
     }
 }
 fn writeScreen(allocator: Allocator) void {
     term.clearScreen();
+    setMenuBarMode(allocator);
+    term.cursorHome();
+    repearChar(' ', width);
+
     setStatusBarMode(allocator);
-    term.setCursor(0, term.config.height, allocator);
-    const offset = term.config.width - keyCodeOffset;
-    spaces(offset);
-    term.setCursor(offset, term.config.height, allocator);
+    term.setCursor(0, height, allocator);
+    const offset = width - keyCodeOffset;
+    repearChar(' ', offset);
+    term.setCursor(offset, height, allocator);
     term.write("key code:             ");
     term.write("exit: Ctrl-q");
     term.setCursor(x, y, allocator);
