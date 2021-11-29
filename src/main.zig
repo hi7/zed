@@ -11,6 +11,7 @@ var width: u16 = undefined;
 var height: u16 = undefined;
 var x: usize = 1;
 var y: usize = 1;
+const keyCodeOffset = 33;
 
 pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
@@ -34,7 +35,7 @@ pub fn main() anyerror!void {
 }
 
 fn processKey(key: term.KeyCode, allocator: Allocator) void {
-    writeKeyCodes(key.code, key.len, term.config.width - 23, term.config.height, allocator);
+    writeKeyCodes(key.code, key.len, term.config.width - keyCodeOffset + 10, term.config.height, allocator);
     term.setCursor(x, y, allocator);
     if(key.len == 1) {
         const c = key.code[0];
@@ -74,9 +75,10 @@ fn writeScreen(allocator: Allocator) void {
     term.clearScreen();
     setStatusBarMode(allocator);
     term.setCursor(0, term.config.height, allocator);
-    spaces(term.config.width - 32);
-    term.setCursor(term.config.width - 32, term.config.height, allocator);
-    term.write("key code:            ");
+    const offset = term.config.width - keyCodeOffset;
+    spaces(offset);
+    term.setCursor(offset, term.config.height, allocator);
+    term.write("key code:             ");
     term.write("exit: Ctrl-q");
     term.setCursor(x, y, allocator);
 }
