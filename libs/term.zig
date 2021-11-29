@@ -53,7 +53,7 @@ pub fn rawMode(timeout: ?u8) void {
     assert(&raw != &config.orig_mode); // ensure raw is a copy    
     raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
          | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
-    raw.oflag &= ~(@as(tcflag, bits.OPOST)); // turn of \n => \n\r
+    //raw.oflag &= ~(@as(tcflag, bits.OPOST)); // turn of \n => \n\r
     raw.cflag |= (@as(tcflag, bits.CS8));
     raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON) | @as(tcflag, bits.IEXTEN) | @as(tcflag, bits.ISIG));
     if(timeout != null) {
@@ -73,8 +73,8 @@ pub fn cookedMode() void {
 }
 pub fn updateWindowSize() void {
     const ws = getWindowSize(io.getStdOut()) catch @panic("getWindowSize failed!");
-    config.height = @as(*const u16, &ws.ws_row).*;
-    config.width = @as(*const u16, &ws.ws_col).*;
+    config.height = @as(*const u16, &ws.ws_row).* - 1;
+    config.width = @as(*const u16, &ws.ws_col).* - 1;
 }
 fn getWindowSize(fd: std.fs.File) !os.winsize {
     while (true) {
