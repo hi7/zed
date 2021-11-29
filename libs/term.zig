@@ -54,7 +54,7 @@ pub fn rawMode(timeout: ?u8) void {
     raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
          | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
     raw.oflag &= ~(@as(tcflag, bits.OPOST));
-    raw.cflag &= ~(@as(tcflag, bits.CS8));
+    raw.cflag |= (@as(tcflag, bits.CS8));
     raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON) | @as(tcflag, bits.IEXTEN) | @as(tcflag, bits.ISIG));
     if(timeout != null) {
         raw.cc[bits.VMIN] = 0; // add timeout for read()

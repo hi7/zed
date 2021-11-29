@@ -9,8 +9,8 @@ const Scope = term.Scope;
 
 var width: u16 = 80;
 var height: u16 = 25;
-var x: usize = 1;
-var y: usize = 2;
+var cursor_x: usize = 1;
+var cursor_y: usize = 2;
 const keyCodeOffset = 33;
 
 pub fn main() anyerror!void {
@@ -35,13 +35,13 @@ pub fn main() anyerror!void {
 
 fn processKey(key: term.KeyCode, allocator: Allocator) void {
     writeKeyCodes(key.code, key.len, term.config.width - keyCodeOffset + 10, term.config.height, allocator);
-    term.setCursor(x, y, allocator);
+    term.setCursor(cursor_x, cursor_y, allocator);
     if(key.len == 1) {
         const c = key.code[0];
         if(std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
             writeChar(c, allocator);
         }
-        if(c == 0x7f and x > 0) backspace();
+        if(c == 0x7f and cursor_x > 0) backspace();
     }
 }
 
@@ -89,17 +89,17 @@ fn writeScreen(allocator: Allocator) void {
     term.setCursor(offset, height, allocator);
     term.write("key code:             ");
     term.write("exit: Ctrl-q");
-    term.setCursor(x, y, allocator);
+    term.setCursor(cursor_x, cursor_y, allocator);
 }
 
 fn writeChar(char: u8, allocator: Allocator) void {
     term.writeByte(char);
-    x += 1;
-    term.setCursor(x, y, allocator);
+    cursor_x += 1;
+    term.setCursor(cursor_x, cursor_y, allocator);
 }
 fn backspace() void {
     term.write("\x1b[1D \x1b[1D");
-    x -= 1;
+    cursor_x -= 1;
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {
