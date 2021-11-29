@@ -1,10 +1,12 @@
 const std = @import("std");
+const reflect = @import("reflect.zig");
 const io = std.io;
+const os = std.os;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const print = std.debug.print;
 
-const bits = std.os.linux;
+const bits = os.linux;
 const tcflag = bits.tcflag_t;
 
 const Allocator = *std.mem.Allocator;
@@ -34,15 +36,21 @@ pub fn setCursor(x: usize, y: usize, allocator: *std.mem.Allocator) void {
     write(out);
 }
 
-var orig_mode: bits.termios = undefined;
+const Config = struct {
+    orig_mode: bits.termios,
+    width: u16,
+    height: u16,
+};
+
+pub var config = Config{ .orig_mode = undefined, .width = 0, .height = 0 };
 /// timeout for read(): x/10 seconds, null means wait forever for input
 pub fn rawMode(timeout: ?u8) void {
-    orig_mode = std.os.tcgetattr(std.os.STDIN_FILENO) catch |err| {
+    config.orig_mode = os.tcgetattr(os.STDIN_FILENO) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcgetattr failed!");
     };
-    var raw = orig_mode;
-    assert(&raw != &orig_mode); // ensure raw is a copy    
+    var raw = config.orig_mode;
+    assert(&raw != &config.orig_mode); // ensure raw is a copy    
     raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
          | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
     raw.oflag &= ~(@as(tcflag, bits.OPOST));
@@ -52,10 +60,35 @@ pub fn rawMode(timeout: ?u8) void {
         raw.cc[bits.VMIN] = 0; // add timeout for read()
         raw.cc[bits.VTIME] = timeout.?;// x/10 seconds
     } 
-    std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, raw) catch |err| {
+    os.tcsetattr(os.STDIN_FILENO, .FLUSH, raw) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcsetattr failed!");
     };
+}
+pub fn cookedMode() void {
+    os.tcsetattr(os.STDIN_FILENO, .FLUSH, config.orig_mode) catch |err| {
+        print("Error: {s}\n", .{err});
+        @panic("tcsetattr failed!");
+    };
+}
+pub fn updateWindowSize() void {
+    const ws = getWindowSize(io.getStdOut()) catch @panic("getWindowSize failed!");
+    config.height = @as(*const u16, &ws.ws_row).*;
+    config.width = @as(*const u16, &ws.ws_col).*;
+}
+fn getWindowSize(fd: std.fs.File) !os.winsize {
+    while (true) {
+        var size: os.winsize = undefined;
+        switch (os.errno(bits.ioctl(fd.handle, os.TIOCGWINSZ, @ptrToInt(&size)))) {
+            0 => return size,
+            os.EINTR => continue,
+            os.EBADF => unreachable,
+            os.EFAULT => unreachable,
+            os.EINVAL => return error.Unsupported,
+            os.ENOTTY => return error.Unsupported,
+            else => |err| return os.unexpectedErrno(err),
+        }
+    }
 }
 
 pub inline fn ctrlKey(key: u8) u8 {
@@ -77,21 +110,14 @@ pub fn readKey() KeyCode {
 }
 
 pub fn nonBlock() void {
-    const fl = std.os.fcntl(std.os.STDIN_FILENO, std.os.F.GETFL, 0) catch |err| {
+    const fl = os.fcntl(os.STDIN_FILENO, os.F.GETFL, 0) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("fcntl(STDIN_FILENO, GETFL, 0) failed!");
     };
-    _ = std.os.fcntl(std.os.STDIN_FILENO, std.os.F.SETFL, fl | std.os.O.NONBLOCK) catch |err| {
+    _ = os.fcntl(os.STDIN_FILENO, os.F.SETFL, fl | os.O.NONBLOCK) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("fcntl(STDIN_FILENO, SETFL, fl | NONBLOCK) failed!");
     };    
-}
-
-pub fn restoreMode() void {
-    std.os.tcsetattr(std.os.STDIN_FILENO, .FLUSH, orig_mode) catch |err| {
-        print("Error: {s}\n", .{err});
-        @panic("tcsetattr failed!");
-    };
 }
 
 /// return the string version of given number, if number is null: "" is returned.
