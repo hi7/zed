@@ -34,7 +34,7 @@ pub fn main() anyerror!void {
 }
 
 fn processKey(key: term.KeyCode, allocator: Allocator) void {
-    writeKeyCodes(key.code, key.len, 11, term.config.height, allocator);
+    writeKeyCodes(key.code, key.len, term.config.width - 23, term.config.height, allocator);
     term.setCursor(x, y, allocator);
     if(key.len == 1) {
         const c = key.code[0];
@@ -64,15 +64,19 @@ fn updateSize(allocator: Allocator) void {
 fn setStatusBarMode(allocator: Allocator) void {
     term.setAttributeMode(Mode.reverse, Scope.foreground, Color.red, allocator);
 }
-fn writeScreen(allocator: Allocator) void {
-    term.clearScreen();
-    term.setCursor(1, term.config.height, allocator);
-    setStatusBarMode(allocator);
-    term.write("key code:");
-    var i: u8 = 9;
-    while(i<term.config.width - 12) : (i += 1) {
+fn spaces(count: u16) void {
+    var i: u8 = 0;
+    while(i<count) : (i += 1) {
         term.write(" ");
     }
+}
+fn writeScreen(allocator: Allocator) void {
+    term.clearScreen();
+    setStatusBarMode(allocator);
+    term.setCursor(0, term.config.height, allocator);
+    spaces(term.config.width - 32);
+    term.setCursor(term.config.width - 32, term.config.height, allocator);
+    term.write("key code:            ");
     term.write("exit: Ctrl-q");
     term.setCursor(x, y, allocator);
 }
