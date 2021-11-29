@@ -9,6 +9,9 @@ const Scope = term.Scope;
 
 var width: u16 = undefined;
 var height: u16 = undefined;
+var x: usize = 1;
+var y: usize = 1;
+
 pub fn main() anyerror!void {
     const allocator = &gpa.allocator;
     term.updateWindowSize();
@@ -30,6 +33,18 @@ pub fn main() anyerror!void {
     term.cursorHome();
 }
 
+fn processKey(key: term.KeyCode, allocator: Allocator) void {
+    writeKeyCodes(key.code, key.len, 11, term.config.height, allocator);
+    term.setCursor(x, y, allocator);
+    if(key.len == 1) {
+        const c = key.code[0];
+        if(std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
+            writeChar(c, allocator);
+        }
+        if(c == 0x7f and x > 0) backspace();
+    }
+}
+
 fn updateSize(allocator: Allocator) void {
     term.updateWindowSize();
     var update = false;
@@ -48,8 +63,8 @@ fn updateSize(allocator: Allocator) void {
 
 fn writeScreen(allocator: Allocator) void {
     term.clearScreen();
-    term.cursorHome();
-    term.setAttributeMode(Mode.underscore, Scope.foreground, Color.red, allocator);
+    term.setCursor(1, term.config.height, allocator);
+    term.setAttributeMode(Mode.reverse, Scope.foreground, Color.red, allocator);
     term.write("key code:");
     var i: u8 = 9;
     while(i<term.config.width - 12) : (i += 1) {
@@ -57,20 +72,6 @@ fn writeScreen(allocator: Allocator) void {
     }
     term.write("exit: Ctrl-q");
     term.setCursor(x, y, allocator);
-}
-
-var x: usize = 1;
-var y: usize = 2;
-fn processKey(key: term.KeyCode, allocator: Allocator) void {
-    writeKeyCodes(key.code, key.len, 11, 1, allocator);
-    term.setCursor(x, y, allocator);
-    if(key.len == 1) {
-        const c = key.code[0];
-        if(std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            writeChar(c, allocator);
-        }
-        if(c == 0x7f and x > 0) backspace();
-    }
 }
 
 fn writeChar(char: u8, allocator: Allocator) void {
@@ -84,9 +85,7 @@ fn backspace() void {
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {
-    term.setAttributesMode(Mode.underscore, Scope.light_foreground, Color.red, Scope.background, Color.black, allocator);
-    term.setCursor(posx, posy, allocator);
-    print("  \x1b[1C  \x1b[1C  \x1b[1C  ", .{});
+    term.setAttributesMode(Mode.reverse, Scope.light_foreground, Color.red, Scope.background, Color.white, allocator);
     term.setCursor(posx, posy, allocator);
     if(len == 0) return;
     if(len == 1) print("{x}", .{sequence[0]});
