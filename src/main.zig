@@ -1,7 +1,6 @@
 const std = @import("std");
 const term = @import("term");
 const print = std.debug.print;
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const Allocator = *std.mem.Allocator;
 const Mode = term.Mode;
 const Color = term.Color;
@@ -11,10 +10,26 @@ var width: u16 = 80;
 var height: u16 = 25;
 var cursor_x: usize = 1;
 var cursor_y: usize = 2;
+var filename: []u8 = "";
+var textbuffer: []u8 = "";
 const keyCodeOffset = 33;
 
 pub fn main() anyerror!void {
-    const allocator = &gpa.allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var allocator = &gpa.allocator;
+    defer _ = gpa.deinit();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer allocator.free(args);
+    if(args.len > 1) {
+        const file = try std.fs.cwd().openFile(args[1], .{ .read = true });
+        defer file.close();
+        filename = args[1];
+        const max = 1024*1024; // TODO use percentage of free memory
+        textbuffer = file.readToEndAlloc(allocator, max) catch @panic("readToEndAlloc(allocator, 4096) failed!");
+    }
+    defer allocator.free(textbuffer);
+
     term.updateWindowSize();
     term.rawMode(5);
 
@@ -76,6 +91,14 @@ fn repearChar(char: u8, count: u16) void {
         term.writeByte(char);
     }
 }
+
+fn showMessage(message: []const u8, allocator: Allocator) void {
+    setStatusBarMode(allocator);
+    term.setCursor(50, height, allocator);
+    term.write(message);
+    term.resetMode();
+}
+var first_line: u16 = 1;
 fn writeScreen(allocator: Allocator) void {
     term.clearScreen();
     setMenuBarMode(allocator);
@@ -86,9 +109,20 @@ fn writeScreen(allocator: Allocator) void {
     term.setCursor(0, height, allocator);
     const offset = width - keyCodeOffset;
     repearChar(' ', offset);
+
+    term.setCursor(0, height, allocator);
+    term.setAttributesMode(Mode.reverse, Scope.light_foreground, themeColor, Scope.background, Color.yellow, allocator);
+    term.write(filename);
+
+    setStatusBarMode(allocator);
     term.setCursor(offset, height, allocator);
     term.write("key code:             ");
     term.write("exit: Ctrl-q");
+
+
+    term.resetMode();
+    term.setCursor(1, first_line + 1, allocator);
+    term.write(textbuffer);
     term.setCursor(cursor_x, cursor_y, allocator);
 }
 
@@ -106,7 +140,7 @@ fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocato
     setStatusBarMode(allocator);
     term.setCursor(posx, posy, allocator);
     term.write("           ");
-    term.setAttributesMode(Mode.reverse, Scope.light_foreground, Color.red, Scope.background, Color.white, allocator);
+    term.setAttributesMode(Mode.reverse, Scope.light_foreground, themeColor, Scope.background, Color.white, allocator);
     term.setCursor(posx, posy, allocator);
     if(len == 0) return;
     if(len == 1) print("{x}", .{sequence[0]});

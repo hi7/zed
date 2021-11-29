@@ -18,7 +18,7 @@ pub const SEQ: u8 = '[';
 const OOM = "OutOfMemory";
 
 pub fn write(data: []const u8) void {
-    _ = io.getStdOut().writer().write(data) catch @panic("StdOut write failed!");
+    _ = io.getStdOut().writer().write(data) catch @panic("StdOut write(data) failed!");
 }
 pub fn writeByte(byte: u8) void {
     _ = io.getStdOut().writer().writeByte(byte) catch @panic("StdOut write failed!");
@@ -30,7 +30,7 @@ pub fn clearScreen() void {
 pub fn cursorHome() void {
     write("\x1b[H");
 }
-pub fn setCursor(x: usize, y: usize, allocator: *std.mem.Allocator) void {
+pub fn setCursor(x: usize, y: usize, allocator: Allocator) void {
     const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ y, x }) catch @panic(OOM);
     defer allocator.free(out);
     write(out);
@@ -53,7 +53,7 @@ pub fn rawMode(timeout: ?u8) void {
     assert(&raw != &config.orig_mode); // ensure raw is a copy    
     raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
          | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
-    raw.oflag &= ~(@as(tcflag, bits.OPOST));
+    raw.oflag &= ~(@as(tcflag, bits.OPOST)); // turn of \n => \n\r
     raw.cflag |= (@as(tcflag, bits.CS8));
     raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON) | @as(tcflag, bits.IEXTEN) | @as(tcflag, bits.ISIG));
     if(timeout != null) {
@@ -146,7 +146,7 @@ pub const Color = enum(u8) { black = '0', red = '1', green = '2', yellow = '3', 
     magenta = '5', cyan = '6', white = '7' };
 pub const Scope = enum(u8) { foreground = '3', background = '4', light_foreground = '9' };
 const modes = 'm';
-pub fn setMode(mode: Mode, allocator: *std.mem.Allocator) void {
+pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
 }
 pub fn resetMode() void {
@@ -155,7 +155,7 @@ pub fn resetMode() void {
 pub fn resetWrapMode() void {
     write("\x1b[?7l");
 }
-pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: *std.mem.Allocator) void {
+pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
     out.append(ESC) catch @panic(OOM);
@@ -171,7 +171,7 @@ pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: *s
     out.append(modes) catch @panic(OOM);
     write(out.items);
 }
-pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: *std.mem.Allocator) void {
+pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
     out.append(ESC) catch @panic(OOM);
