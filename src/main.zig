@@ -1,6 +1,8 @@
 const std = @import("std");
 const term = @import("term");
 const print = std.debug.print;
+const assert = std.debug.assert;
+const expect = std.testing.expect;
 const Allocator = *std.mem.Allocator;
 const Mode = term.Mode;
 const Color = term.Color;
@@ -10,6 +12,7 @@ var width: u16 = 80;
 var height: u16 = 25;
 var cursor_x: usize = 1;
 var cursor_y: usize = 2;
+var cursor_index: usize = 0;
 var filename: []u8 = "";
 var textbuffer: []u8 = "";
 const keyCodeOffset = 20;
@@ -49,6 +52,15 @@ pub fn main() anyerror!void {
     term.cursorHome();
 }
 
+const ControlKey = enum(u8) {
+    backspace = 0x7f, 
+    pub fn isControlKey(char: u8) bool {
+        inline for (std.meta.fields(ControlKey)) |field| {
+            if (char == field.value) return true;
+        }
+        return false;
+    }
+};
 fn processKey(key: term.KeyCode, allocator: Allocator) void {
     writeKeyCodes(key.code, key.len, term.config.width - keyCodeOffset + 10, term.config.height, allocator);
     term.setCursor(cursor_x, cursor_y, allocator);
@@ -57,20 +69,12 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
         if(std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
             writeChar(c, allocator);
         }
-        if(c == 0x7f and cursor_x > 0) backspace();
+        if(c == @enumToInt(ControlKey.backspace) and cursor_x > 0) backspace();
     } else if(key.len == 3) {
-        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) {
-            if(cursor_y > 2) up();
-        }
-        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) {
-            if(cursor_y < (height - 1)) down();
-        }
-        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) {
-            if(cursor_x < width) right();
-        }
-        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) {
-            if(cursor_x > 1) left();
-        }
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) up();
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) down();
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) right();
+        if(key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) left();
     }
 }
 
@@ -134,15 +138,21 @@ inline fn menuBar(allocator: Allocator) void {
 fn fileColor(modified: bool) Color {
     return if(modified) Color.yellow else Color.white;
 }
+
+pub var message: []const u8 = "READY.";
 fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(0, height, allocator);
-    print("L{d}:C{d} H{d}:W{d}     ", .{cursor_y - offset_y, cursor_x - offset_x, height, width});
+    if(std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
+        print("L{d}:C{d}:I{d} ch:{c} {s}   ", 
+            .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
+    } else {
+        print("L{d}:C{d}:I{d} ch:0x{x} {s}   ", 
+            .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
+    }
+
     term.setCursor(cursor_x, cursor_y, allocator);
 }
-
-var offset_x: u16 = 0;
-var offset_y: u16 = 1;
 inline fn statusBar(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(0, height, allocator);
@@ -158,14 +168,36 @@ inline fn statusBar(allocator: Allocator) void {
     term.setAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(false), allocator);
     term.write(filename);
 }
-const indexOf = std.mem.indexOf;
-inline fn endOfPageIndex() usize {
+test "previousBreak" {
+    try expect(previousBreak("", 0, 2) == 0);
+    try expect(previousBreak("\n", 0, 1) == 0);
+    try expect(previousBreak("\na", 1, 1) == 0);
+    try expect(previousBreak("a\n", 1, 1) == 1);
+    try expect(previousBreak("a\n\n", 2, 2) == 1);
+    try expect(previousBreak("a\n\nb", 3, 2) == 1);
+    try expect(previousBreak("a\nb\nc", 4, 2) == 1);
+    try expect(previousBreak("a\n\nb\nc", 4, 2) == 2);
+    //print("previousBreak(>>a\\n\\nb<<, 3, 2) = {d}\n", .{previousBreak("a\n\nb", 3, 2)});
+}
+inline fn previousBreak(text: []const u8, start: usize, count: u16) usize {
     var found: u16 = 0;
-    var i: usize = 0;
-    while(found<(height-2) and i < textbuffer.len) : (i += 1) {
-        if(textbuffer[i] == '\n') found += 1;
+    var index = start;
+    while(found<count and index > 0) : (index -= 1) {
+        if(text[index] == '\n') found += 1;
+        if (found==count) return index;
     }
-    return i;
+    return index;
+}
+inline fn nextBreak(text: []const u8, start: usize, count: u16) usize {
+    var found: u16 = 0;
+    var index = start;
+    while(found<count and index < text.len) : (index += 1) {
+        if(text[index] == '\n') found += 1;
+    }
+    return index;
+}
+inline fn endOfPageIndex() usize {
+    return nextBreak(textbuffer, 0, height - 2);
 }
 inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
@@ -189,20 +221,93 @@ fn backspace() void {
     term.write("\x1b[1D \x1b[1D");
 }
 fn left() void {
-    cursor_x -= 1;
-    term.write("\x1b[1D");
+    if (cursor_index > 0) {
+        const breakIndex = nextBreak(textbuffer, cursor_index, 1);
+        if (cursor_x > 1 and cursor_index < breakIndex) {
+            cursor_x -= 1;
+            cursor_index -= 1;
+            term.write("\x1b[1D");
+        } else {
+            const n1 = previousBreak(textbuffer, cursor_index - 1, 2);
+            if (n1 < cursor_index) {
+                const n2 = previousBreak(textbuffer, cursor_index - 1, 1);
+                if (n2 < cursor_index) {
+                    cursor_x = n2 - n1;
+                    if(n1 == 0) {
+                        cursor_x += 1;
+                    }
+                    if (cursor_y > 1) {
+                        cursor_y -= 1;
+                    } else {
+                        // TODO scroll up
+                    }
+                    cursor_index -= 1;
+                }
+            }
+        }
+    }
 }
 fn right() void {
-    cursor_x += 1;
-    term.write("\x1b[1C");
+    if (cursor_index < textbuffer.len - 1) {
+        if (cursor_x < width and textbuffer[cursor_index] != '\n') {
+            cursor_x += 1;
+            cursor_index += 1;
+            term.write("\x1b[1C");
+        } else {
+            if (textbuffer[cursor_index] == '\n') {
+                cursor_x = 1;
+                if (cursor_y < height - 1) {
+                    cursor_y += 1;
+                } else {
+                    // TODO scroll up
+                }
+                cursor_index += 1;
+            }
+        }
+    }
+}
+test "emptyLine" {
+    try expect(isEmptyLine("", 0));
+    try expect(isEmptyLine("\n", 0));
+    try expect(!isEmptyLine("a", 0));
+    try expect(isEmptyLine("\n\n", 0));
+    try expect(isEmptyLine("\na\n", 0));
+    try expect(!isEmptyLine("\na\n", 1));
+}
+fn isEmptyLine(text: []const u8, index: usize) bool {
+    if (text.len == 0) return true;
+    if (index > 0 and index < text.len - 1) {
+        return text[index] == '\n' and text[index - 1] == '\n';
+    } else {
+        return text[index] == '\n';
+    }
+    return false;
 }
 fn up() void {
-    cursor_y -= 1;
-    term.write("\x1b[1D");
+    if (cursor_y > 2 and cursor_index > 0) {
+        var index: usize = undefined;
+        if (isEmptyLine(textbuffer, cursor_index - 1)) {
+            index = previousBreak(textbuffer, cursor_index - 1, 1);
+        } else {
+            index = previousBreak(textbuffer, cursor_index - 1, 2);
+            if(index > 0) index += 1;
+        }
+        if(index < cursor_index) {
+            cursor_index = index;
+            cursor_y -= 1;
+            term.write("\x1b[1D");
+        }
+    }
 }
 fn down() void {
-    cursor_y += 1;
-    term.write("\x1b[1C");
+    if(cursor_y < (height - 1) and cursor_index < textbuffer.len - 1) {
+        const index = nextBreak(textbuffer, cursor_index, 1);
+        if(index > cursor_index) {
+            cursor_index = index;
+            cursor_y += 1;
+            term.write("\x1b[1C");
+        }
+    }
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, posx: usize, posy: usize, allocator: Allocator) void {
