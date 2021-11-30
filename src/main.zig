@@ -255,13 +255,16 @@ fn right() void {
             term.write("\x1b[1C");
         } else {
             if (textbuffer[cursor_index] == '\n') {
-                cursor_x = 1;
                 if (cursor_y < height - 1) {
+                    cursor_x = 1;
                     cursor_y += 1;
+                    cursor_index += 1;
                 } else {
+                    message = "IMPLEMENT SCROLL UP";
+                    //cursor_index += 1;
+                    //cursor_x = 1;
                     // TODO scroll up
                 }
-                cursor_index += 1;
             }
         }
     }
