@@ -143,12 +143,14 @@ pub var message: []const u8 = "READY.";
 fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(0, height, allocator);
-    if(std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
-        print("L{d}:C{d}:I{d} ch:{c} {s}   ", 
-            .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
-    } else {
-        print("L{d}:C{d}:I{d} ch:0x{x} {s}   ", 
-            .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
+    if (cursor_index < textbuffer.len) {
+        if (std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
+            print("L{d}:C{d}:I{d} ch:{c} {s}   ",
+              .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
+        } else {
+            print("L{d}:C{d}:I{d} ch:0x{x} {s}   ", 
+              .{cursor_y, cursor_x, cursor_index, textbuffer[cursor_index], message});
+        }
     }
 
     term.setCursor(cursor_x, cursor_y, allocator);
@@ -248,7 +250,7 @@ fn left() void {
     }
 }
 fn right() void {
-    if (cursor_index < textbuffer.len - 1) {
+    if (textbuffer.len > 0 and cursor_index < textbuffer.len - 1) {
         if (cursor_x < width and textbuffer[cursor_index] != '\n') {
             cursor_x += 1;
             cursor_index += 1;
@@ -303,7 +305,7 @@ fn up() void {
     }
 }
 fn down() void {
-    if(cursor_y < (height - 1) and cursor_index < textbuffer.len - 1) {
+    if(cursor_y < (height - 1) and textbuffer.len > 0 and  cursor_index < textbuffer.len - 1) {
         const index = nextBreak(textbuffer, cursor_index, 1);
         if(index > cursor_index) {
             cursor_index = index;
