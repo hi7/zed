@@ -1,14 +1,14 @@
+const root = @import("root");
 const std = @import("std");
 const reflect = @import("reflect.zig");
 const io = std.io;
 const os = std.os;
+const system = os.system;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const print = std.debug.print;
 
-const bits = os.linux;
-const tcflag = bits.tcflag_t;
-
+const tcflag = system.tcflag_t;
 const Allocator = *std.mem.Allocator;
 
 pub const ESC: u8 = '\x1B';
@@ -37,7 +37,7 @@ pub fn setCursor(x: usize, y: usize, allocator: Allocator) void {
 }
 
 const Config = struct {
-    orig_mode: bits.termios,
+    orig_mode: system.termios,
     width: u16,
     height: u16,
 };
@@ -51,14 +51,14 @@ pub fn rawMode(timeout: ?u8) void {
     };
     var raw = config.orig_mode;
     assert(&raw != &config.orig_mode); // ensure raw is a copy    
-    raw.iflag &= ~(@as(tcflag, bits.BRKINT) | @as(tcflag, bits.ICRNL) | @as(tcflag, bits.INPCK)
-         | @as(tcflag, bits.ISTRIP) | @as(tcflag, bits.IXON));
-    //raw.oflag &= ~(@as(tcflag, bits.OPOST)); // turn of \n => \n\r
-    raw.cflag |= (@as(tcflag, bits.CS8));
-    raw.lflag &= ~(@as(tcflag, bits.ECHO) | @as(tcflag, bits.ICANON) | @as(tcflag, bits.IEXTEN) | @as(tcflag, bits.ISIG));
+    raw.iflag &= ~(@as(tcflag, system.BRKINT) | @as(tcflag, system.ICRNL) | @as(tcflag, system.INPCK)
+         | @as(tcflag, system.ISTRIP) | @as(tcflag, system.IXON));
+    //raw.oflag &= ~(@as(tcflag, system.OPOST)); // turn of \n => \n\r
+    raw.cflag |= (@as(tcflag, system.CS8));
+    raw.lflag &= ~(@as(tcflag, system.ECHO) | @as(tcflag, system.ICANON) | @as(tcflag, system.IEXTEN) | @as(tcflag, system.ISIG));
     if(timeout != null) {
-        raw.cc[bits.VMIN] = 0; // add timeout for read()
-        raw.cc[bits.VTIME] = timeout.?;// x/10 seconds
+        raw.cc[system.VMIN] = 0; // add timeout for read()
+        raw.cc[system.VTIME] = timeout.?;// x/10 seconds
     } 
     os.tcsetattr(os.STDIN_FILENO, .FLUSH, raw) catch |err| {
         print("Error: {s}\n", .{err});
@@ -79,7 +79,7 @@ pub fn updateWindowSize() void {
 fn getWindowSize(fd: std.fs.File) !os.winsize {
     while (true) {
         var size: os.winsize = undefined;
-        switch (os.errno(bits.ioctl(fd.handle, os.TIOCGWINSZ, @ptrToInt(&size)))) {
+        switch (os.errno(system.ioctl(fd.handle, os.TIOCGWINSZ, @ptrToInt(&size)))) {
             0 => return size,
             os.EINTR => continue,
             os.EBADF => unreachable,
