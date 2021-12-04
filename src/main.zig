@@ -1,5 +1,6 @@
 const std = @import("std");
 const term = @import("term");
+const mem = std.mem;
 const print = std.debug.print;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
@@ -214,6 +215,16 @@ fn writeScreen(allocator: Allocator) void {
 }
 
 fn writeChar(char: u8, allocator: Allocator) void {
+    if (cursor_index == textbuffer.len - 1) {
+        // extend texbuffer
+        var buffer = allocator.alloc(u8, textbuffer.len + chunk) catch @panic(OOM);
+        mem.copy(u8, buffer[0..cursor_index - 1]);
+        buffer[cursor_index] = char;
+        allocator.free(textbuffer);
+        textbuffer = buffer;
+        length = cursor_index + 1;
+    }
+    textbuffer[cursor_index] = char;
     term.writeByte(char);
     cursor_x += 1;
     term.setCursor(cursor_x, cursor_y, allocator);
