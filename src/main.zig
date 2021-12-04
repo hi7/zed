@@ -9,6 +9,9 @@ const Mode = term.Mode;
 const Color = term.Color;
 const Scope = term.Scope;
 
+// Errors
+const OOM = "OutOfMemory";
+
 var width: u16 = 80;
 var height: u16 = 25;
 var cursor_x: usize = 1;
@@ -232,10 +235,12 @@ fn writeScreen(allocator: Allocator) void {
 }
 
 fn writeChar(char: u8, allocator: Allocator) void {
-    if (cursor_index == textbuffer.len - 1) {
+    if (textbuffer.len == 0 or cursor_index == textbuffer.len - 1) {
         // extend texbuffer
         var buffer = allocator.alloc(u8, textbuffer.len + chunk) catch @panic(OOM);
-        mem.copy(u8, buffer[0..cursor_index - 1]);
+        if (cursor_index < length) {
+            mem.copy(u8, buffer[0..cursor_index - 1], textbuffer[0..cursor_index - 1]);
+        }
         buffer[cursor_index] = char;
         allocator.free(textbuffer);
         textbuffer = buffer;
