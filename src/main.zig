@@ -16,23 +16,33 @@ var cursor_y: usize = 2;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
 var textbuffer: []u8 = "";
+var length: usize = undefined;
 const keyCodeOffset = 20;
+const chunk = 4096;
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var allocator = &gpa.allocator;
-    defer _ = gpa.deinit();
-
-    const args = try std.process.argsAlloc(allocator);
-    defer allocator.free(args);
-    if(args.len > 1) {
-        const file = try std.fs.cwd().openFile(args[1], .{ .read = true });
-        defer file.close();
-        filename = args[1];
-        const max = 1024*1024; // TODO use percentage of free memory
-        textbuffer = file.readToEndAlloc(allocator, max) catch @panic("File too large!");
+    var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = &general_purpose_allocator.allocator;
+    defer {
+        const leaked = general_purpose_allocator.deinit();
+        if (leaked) expect(false) catch @panic("Memory leak!");
     }
-    defer allocator.free(textbuffer);
+
+    const args = try std.process.argsAlloc(gpa);
+    defer gpa.free(args);
+    if(args.len > 1) {
+        filename = args[1];
+        const file = try std.fs.cwd().openFile(filename, .{ .read = true });
+        defer file.close();
+        length = file.getEndPos() catch @panic("file seek error!");
+        // extent to multiple of chunk and add one chunk
+        const max = multipleOf(chunk, length) + chunk;
+        textbuffer = gpa.alloc(u8, max) catch @panic("OutOfMemory");
+        //try file.seekTo(0);
+        const bytes_read = file.readAll(textbuffer) catch @panic("File too large!");
+        assert(bytes_read == length);
+    }
+    defer gpa.free(textbuffer);
 
     term.updateWindowSize();
     term.rawMode(5);
@@ -41,16 +51,20 @@ pub fn main() anyerror!void {
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
-            processKey(key, allocator);
+            processKey(key, gpa);
         }
-        updateSize(allocator);
-        showStatus(allocator);
+        updateSize(gpa);
+        showStatus(gpa);
     }
 
     term.resetMode();
     term.cookedMode();
     term.clearScreen();
     term.cursorHome();
+}
+
+inline fn multipleOf(mul: usize, len: usize) usize {
+    return ((len / mul) + 1) * mul;
 }
 
 const ControlKey = enum(u8) {
@@ -191,16 +205,19 @@ inline fn previousBreak(text: []const u8, start: usize, count: u16) usize {
     }
     return index;
 }
-inline fn nextBreak(text: []const u8, start: usize, count: u16) usize {
+inline fn nextBreak(text: []const u8, start: usize, count: usize) usize {
     var found: u16 = 0;
     var index = start;
-    while(found<count and index < text.len) : (index += 1) {
+    while(found<count and index < length) : (index += 1) {
         if(text[index] == '\n') found += 1;
     }
     return index;
 }
+fn min(comptime T: type, a: T, b: T) T {
+    return if (a < b) a else b;
+}
 inline fn endOfPageIndex() usize {
-    return nextBreak(textbuffer, 0, height - 2);
+    return nextBreak(textbuffer, 0, @as(usize, height - 2));
 }
 inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
@@ -261,7 +278,7 @@ fn left() void {
     }
 }
 fn right() void {
-    if (textbuffer.len > 0 and cursor_index < textbuffer.len - 1) {
+    if (length > 0 and cursor_index < length - 1) {
         if (cursor_x < width and textbuffer[cursor_index] != '\n') {
             cursor_x += 1;
             cursor_index += 1;
@@ -301,6 +318,9 @@ fn isEmptyLine(text: []const u8, index: usize) bool {
 }
 fn up() void {
     if (cursor_y > 2 and cursor_index > 0) {
+        if (cursor_y == 2) {
+            message = "SCROLL DOWN!        ";
+        }
         var index: usize = undefined;
         if (isEmptyLine(textbuffer, cursor_index - 1)) {
             index = previousBreak(textbuffer, cursor_index - 1, 1);
@@ -316,12 +336,16 @@ fn up() void {
     }
 }
 fn down() void {
-    if(cursor_y < (height - 1) and textbuffer.len > 0 and  cursor_index < textbuffer.len - 1) {
-        const index = nextBreak(textbuffer, cursor_index, 1);
-        if(index > cursor_index) {
-            cursor_index = index;
-            cursor_y += 1;
-            term.write("\x1b[1C");
+    if(length > 0 and cursor_index < (length - 1)) {
+        if (cursor_y == height - 1) {
+            message = "SCROLL UP!          ";
+        } else {
+            const index = nextBreak(textbuffer, cursor_index, 1);
+            if(index > cursor_index and index < (length - 1)) {
+                cursor_index = index;
+                cursor_y += 1;
+                term.write("\x1b[1C");
+            }
         }
     }
 }
