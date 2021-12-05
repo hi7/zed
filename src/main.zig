@@ -324,7 +324,7 @@ fn left() bool {
     return false;
 }
 fn right() bool {
-    if (length > 0 and cursor_index < length) {
+    if (length > 0 and cursor_index < length - 1) {
         if (cursor_x < width and textbuffer[cursor_index] != '\n') {
             cursor_x += 1;
             cursor_index += 1;
