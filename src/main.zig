@@ -87,6 +87,7 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
         const c = key.code[0];
         if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
             writeChar(c, allocator);
+            update = true;
         }
         if (c == @enumToInt(ControlKey.backspace) and cursor_x > 0) backspace();
     } else if (key.len == 3) {
@@ -237,6 +238,13 @@ fn writeScreen(allocator: Allocator) void {
     showTextBuffer(allocator);
 }
 
+fn shiftRight() void {
+    var i = length;
+    while(i > cursor_index) : (i -= 1) {
+        message = "i    ";
+        textbuffer[i] = textbuffer[i-1];
+    }
+}
 fn writeChar(char: u8, allocator: Allocator) void {
     if (textbuffer.len == 0 or cursor_index == textbuffer.len - 1) {
         // extend texbuffer
@@ -248,12 +256,11 @@ fn writeChar(char: u8, allocator: Allocator) void {
         allocator.free(textbuffer);
         textbuffer = buffer;
     }
+    if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
-    term.writeByte(char);
     cursor_x += 1;
     cursor_index += 1;
     length += 1;
-    term.setCursor(cursor_x, cursor_y, allocator);
 }
 fn backspace() void {
     cursor_x -= 1;
