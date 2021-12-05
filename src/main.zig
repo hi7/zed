@@ -88,8 +88,7 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
         if (c == 0x0d) { // new line
             update = newLine(allocator);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            writeChar(c, allocator);
-            update = true;
+            update = writeChar(c, allocator);
         }
         if (c == @enumToInt(ControlKey.backspace) and cursor_x > 0) update = backspace();
     } else if (key.len == 3) {
@@ -277,13 +276,14 @@ fn newLine(allocator: Allocator) bool {
     length += 1;
     return  true;
 }
-fn writeChar(char: u8, allocator: Allocator) void {
+fn writeChar(char: u8, allocator: Allocator) bool {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
     cursor_x += 1;
     cursor_index += 1;
     length += 1;
+    return true;
 }
 fn backspace() bool {
     if (cursor_index > 0) {
