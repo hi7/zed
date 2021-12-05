@@ -288,8 +288,7 @@ fn writeChar(char: u8, allocator: Allocator) void {
 fn backspace() bool {
     if (cursor_index > 0) {
         shiftLeft();
-        cursor_x -= 1;
-        cursor_index -= 1;
+        _ = left();
         length -= 1;
         return true;
     }
