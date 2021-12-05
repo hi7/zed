@@ -89,14 +89,14 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
             writeChar(c, allocator);
             update = true;
         }
-        if (c == @enumToInt(ControlKey.backspace) and cursor_x > 0) backspace();
+        if (c == @enumToInt(ControlKey.backspace) and cursor_x > 0) update = backspace();
     } else if (key.len == 3) {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = up();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = down();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = right();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = left();
     }
-    if (update) showTextBuffer(allocator);
+    if (update) resetScreen(allocator);
 }
 
 fn updateSize(allocator: Allocator) void {
@@ -237,7 +237,17 @@ fn writeScreen(allocator: Allocator) void {
     statusBar(allocator);
     showTextBuffer(allocator);
 }
+fn resetScreen(allocator: Allocator) void {
+    term.clearScreen();
+    writeScreen(allocator);
+}
 
+fn shiftLeft() void {
+    var i = cursor_index;
+    while(i < length) : (i += 1) {
+        textbuffer[i-1] = textbuffer[i];
+    }
+}
 fn shiftRight() void {
     var i = length;
     while(i > cursor_index) : (i -= 1) {
@@ -261,9 +271,15 @@ fn writeChar(char: u8, allocator: Allocator) void {
     cursor_index += 1;
     length += 1;
 }
-fn backspace() void {
-    cursor_x -= 1;
-    term.write("\x1b[1D \x1b[1D");
+fn backspace() bool {
+    if (cursor_index > 0) {
+        shiftLeft();
+        cursor_x -= 1;
+        cursor_index -= 1;
+        length -= 1;
+        return true;
+    }
+    return false;
 }
 fn left() bool {
     if (cursor_index > 0) {
