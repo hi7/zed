@@ -241,7 +241,6 @@ fn writeScreen(allocator: Allocator) void {
 fn shiftRight() void {
     var i = length;
     while(i > cursor_index) : (i -= 1) {
-        message = "i    ";
         textbuffer[i] = textbuffer[i-1];
     }
 }
