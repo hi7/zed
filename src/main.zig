@@ -85,7 +85,9 @@ fn processKey(key: term.KeyCode, allocator: Allocator) void {
     term.setCursor(cursor_x, cursor_y, allocator);
     if (key.len == 1) {
         const c = key.code[0];
-        if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
+        if (c == 0x0d) { // new line
+            update = newLine(allocator);
+        } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
             writeChar(c, allocator);
             update = true;
         }
@@ -254,17 +256,29 @@ fn shiftRight() void {
         textbuffer[i] = textbuffer[i-1];
     }
 }
-fn writeChar(char: u8, allocator: Allocator) void {
+
+fn extendBuffer(allocator: Allocator) void {
     if (textbuffer.len == 0 or cursor_index == textbuffer.len - 1) {
-        // extend texbuffer
         var buffer = allocator.alloc(u8, textbuffer.len + chunk) catch @panic(OOM);
         if (cursor_index < length) {
             mem.copy(u8, buffer[0..cursor_index - 1], textbuffer[0..cursor_index - 1]);
         }
-        buffer[cursor_index] = char;
         allocator.free(textbuffer);
         textbuffer = buffer;
     }
+}
+fn newLine(allocator: Allocator) bool {
+    extendBuffer(allocator);
+    if (cursor_index < length) shiftRight();
+    textbuffer[cursor_index] = '\n';
+    cursor_x = 1;
+    cursor_y += 1;
+    cursor_index += 1;
+    length += 1;
+    return  true;
+}
+fn writeChar(char: u8, allocator: Allocator) void {
+    extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
     cursor_x += 1;
