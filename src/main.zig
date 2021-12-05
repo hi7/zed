@@ -247,12 +247,12 @@ fn writeChar(char: u8, allocator: Allocator) void {
         buffer[cursor_index] = char;
         allocator.free(textbuffer);
         textbuffer = buffer;
-        length = cursor_index + 1;
     }
     textbuffer[cursor_index] = char;
     term.writeByte(char);
     cursor_x += 1;
     cursor_index += 1;
+    length += 1;
     term.setCursor(cursor_x, cursor_y, allocator);
 }
 fn backspace() void {
