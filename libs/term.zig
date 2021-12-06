@@ -1,6 +1,5 @@
 const root = @import("root");
 const std = @import("std");
-const reflect = @import("reflect.zig");
 const io = std.io;
 const os = std.os;
 const system = os.system;
@@ -30,11 +29,15 @@ pub fn clearScreen() void {
 pub fn cursorHome() void {
     write("\x1b[H");
 }
-pub fn setCursor(x: usize, y: usize, allocator: Allocator) void {
-    const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ y, x }) catch @panic(OOM);
+pub fn setCursor(pos: Position, allocator: Allocator) void {
+    const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ pos.y, pos.x }) catch @panic(OOM);
     defer allocator.free(out);
     write(out);
 }
+
+pub const Position = struct {
+    x: usize, y: usize,
+};
 
 const Config = struct {
     orig_mode: system.termios,
