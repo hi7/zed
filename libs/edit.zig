@@ -454,6 +454,7 @@ test "up" {
     try expect(writeChar('a', allocator));
     try expect(up());
     try expect(toXY(textbuffer, cursor_index).x == 1);
+    allocator.free(textbuffer);
 }
 fn up() bool {
     const pos = toXY(textbuffer, cursor_index); 
