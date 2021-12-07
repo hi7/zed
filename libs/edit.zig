@@ -85,10 +85,10 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         }
         if (c == @enumToInt(ControlKey.backspace) and toXY(textbuffer, cursor_index).x > 0) update = backspace();
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = up();
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = down();
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = right();
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = left();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = cursorRight();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = cursorLeft();
     }
     if (update) resetScreen(allocator);
 }
@@ -288,21 +288,21 @@ fn writeChar(char: u8, allocator: Allocator) bool {
 fn backspace() bool {
     if (cursor_index > 0) {
         shiftLeft();
-        _ = left();
+        _ = cursorLeft();
         length -= 1;
         return true;
     }
     return false;
 }
-fn left() bool {
+fn cursorLeft() bool {
     if (cursor_index > 0) {
         cursor_index -= 1;
         return true;
     }
     return false;
 }
-fn right() bool {
-    if (length > 0 and cursor_index < length - 1) {
+fn cursorRight() bool {
+    if (length > 0 and cursor_index < length) {
         cursor_index += 1;
         return true;
     }
@@ -448,15 +448,15 @@ fn toXY(text: []const u8, index: usize) Position {
     return Position{ .x = x, .y = y };
 }
 
-test "up" {
+test "cursorUp" {
     const allocator = std.testing.allocator;
     try expect(newLine(allocator));
     try expect(writeChar('a', allocator));
-    try expect(up());
+    try expect(cursorUp());
     try expect(toXY(textbuffer, cursor_index).x == 1);
     allocator.free(textbuffer);
 }
-fn up() bool {
+fn cursorUp() bool {
     const pos = toXY(textbuffer, cursor_index); 
     if (pos.y > 1 and cursor_index > 0) {
         if (pos.y == 1) {
@@ -477,14 +477,15 @@ fn up() bool {
     }
     return false;
 }
-fn down() bool {
-    if(length > 0 and cursor_index < (length - 1)) {
+fn cursorDown() bool {
+    if(cursor_index < length) {
         if (toXY(textbuffer, cursor_index).x == height - 1) {
             message = "SCROLL UP!          ";
             return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
-            if(index > cursor_index and index < (length - 1)) {
+            print("index: {d}", .{index});
+            if(index > cursor_index) {
                 cursor_index = index;
                 return true;
             }
