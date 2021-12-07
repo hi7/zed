@@ -172,14 +172,14 @@ pub fn showStatus(allocator: Allocator) void {
     const pos = toXY(textbuffer, cursor_index);
     if (cursor_index < textbuffer.len) {
         if (std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
-            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:{c} {s}   ",
-              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message});
+            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:{c} {s}  x:{d} ",
+              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message, last_x});
         } else {
-            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:0x{x} {s}   ", 
-              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message});
+            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:0x{x} {s}  x:{d} ", 
+              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message, last_x});
         }
     } else {
-        print("L{d}:C{d}:I{d}:\xce\xa3{d} {s}   ", .{pos.y, pos.x, cursor_index, length, message});
+        print("L{d}:C{d}:I{d}:\xce\xa3{d} {s}  x:{d} ", .{pos.y, pos.x, cursor_index, length, message, last_x});
     }
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
@@ -271,41 +271,44 @@ fn extendBuffer(allocator: Allocator) void {
         textbuffer = buffer;
     }
 }
+var last_x: usize = 0;
+fn cursorLeft() bool {
+    if (cursor_index > 0) {
+        cursor_index -= 1;
+        last_x = toXY(textbuffer, cursor_index).x;
+        return true;
+    }
+    return false;
+}
+fn cursorRight() bool {
+    if (cursor_index < length) {
+        cursor_index += 1;
+        last_x = toXY(textbuffer, cursor_index).x;
+        return true;
+    }
+    return false;
+}
 fn newLine(allocator: Allocator) bool {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = '\n';
-    cursor_index += 1;
     length += 1;
+    assert(cursorRight());
     return  true;
 }
 fn writeChar(char: u8, allocator: Allocator) bool {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
-    cursor_index += 1;
     length += 1;
+    assert(cursorRight());
     return true;
 }
 fn backspace() bool {
     if (cursor_index > 0) {
         shiftLeft();
-        _ = cursorLeft();
         length -= 1;
-        return true;
-    }
-    return false;
-}
-fn cursorLeft() bool {
-    if (cursor_index > 0) {
-        cursor_index -= 1;
-        return true;
-    }
-    return false;
-}
-fn cursorRight() bool {
-    if (length > 0 and cursor_index < length) {
-        cursor_index += 1;
+        assert(cursorLeft());
         return true;
     }
     return false;
