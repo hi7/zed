@@ -30,7 +30,7 @@ pub fn cursorHome() void {
     write("\x1b[H");
 }
 pub fn setCursor(pos: Position, allocator: Allocator) void {
-    const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ pos.y, pos.x }) catch @panic(OOM);
+    const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ pos.y + 1, pos.x + 1}) catch @panic(OOM);
     defer allocator.free(out);
     write(out);
 }

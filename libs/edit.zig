@@ -19,7 +19,7 @@ var cursor_index: usize = 0;
 var filename: []u8 = "";
 var textbuffer: []u8 = "";
 var length: usize = undefined;
-const keyCodeOffset = 20;
+const keyCodeOffset = 21;
 const chunk = 4096;
 
 pub const ControlKey = enum(u8) {
@@ -130,7 +130,7 @@ fn repearChar(char: u8, count: u16) void {
 
 fn showMessage(message: []const u8, allocator: Allocator) void {
     setStatusBarMode(allocator);
-    term.setCursor(50, height, allocator);
+    term.setCursor(50, height - 1, allocator);
     term.write(message);
     term.resetMode();
 }
@@ -147,7 +147,7 @@ inline fn menuBar(allocator: Allocator) void {
     term.cursorHome();
     repearChar(' ', width);
 
-    term.setCursor(Position{ .x = width - 12, .y = 1}, allocator);
+    term.setCursor(Position{ .x = width - 13, .y = 0}, allocator);
     shortCut('Q', "uit: Ctrl-q", allocator);
 }
 fn fileColor(modified: bool) Color {
@@ -157,8 +157,8 @@ fn fileColor(modified: bool) Color {
 var offset_y: usize = 1;
 inline fn positionOnScreen(pos: Position) Position {
     return Position{ 
-        .x = if (pos.x == 0) 1 else pos.x, 
-        .y = if (pos.y == 0) 1 + offset_y else pos.y + offset_y
+        .x = pos.x, 
+        .y = pos.y + offset_y
     };
 }
 fn setTextCursor(pos: Position, allocator: Allocator) void {
@@ -168,9 +168,9 @@ fn setTextCursor(pos: Position, allocator: Allocator) void {
 pub var message: []const u8 = "READY.";
 pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
-    term.setCursor(Position{ .x = 0, .y = height}, allocator);
+    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
+    const pos = toXY(textbuffer, cursor_index);
     if (cursor_index < textbuffer.len) {
-        const pos = toXY(textbuffer, cursor_index);
         if (std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
             print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:{c} {s}   ",
               .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message});
@@ -178,21 +178,23 @@ pub fn showStatus(allocator: Allocator) void {
             print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:0x{x} {s}   ", 
               .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message});
         }
+    } else {
+        print("L{d}:C{d}:I{d}:\xce\xa3{d} {s}   ", .{pos.y, pos.x, cursor_index, length, message});
     }
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
     setStatusBarMode(allocator);
-    term.setCursor(Position{ .x = 0, .y = height}, allocator);
+    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const offset = width - keyCodeOffset;
     repearChar(' ', offset);
 
     showStatus(allocator);
 
-    term.setCursor(Position{ .x = offset, .y = height}, allocator);
+    term.setCursor(Position{ .x = offset, .y = height - 1}, allocator);
     term.write("key code:            ");
 
-    term.setCursor(Position{ .x = 0, .y = height}, allocator);
+    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     term.setAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(false), allocator);
     term.write(filename);
 }
@@ -232,7 +234,7 @@ inline fn endOfPageIndex() usize {
 }
 inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
-    term.setCursor(Position{ .x = 1, .y = 2}, allocator);
+    term.setCursor(Position{ .x = 0, .y = 1}, allocator);
     term.write(textbuffer[0..endOfPageIndex()]);
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
@@ -332,111 +334,111 @@ test "toXY" {
     try expect(toXY("", 1).x == 0);
     try expect(toXY("", 1).y == 0);
     // one character
-    try expect(toXY("a", 0).x == 1);
-    try expect(toXY("a", 0).y == 1);
-    try expect(toXY("a", 1).x == 1);
-    try expect(toXY("a", 1).y == 1);
-    try expect(toXY("a", 2).x == 1);
-    try expect(toXY("a", 2).y == 1);
+    try expect(toXY("a", 0).x == 0);
+    try expect(toXY("a", 0).y == 0);
+    try expect(toXY("a", 1).x == 0);
+    try expect(toXY("a", 1).y == 0);
+    try expect(toXY("a", 2).x == 0);
+    try expect(toXY("a", 2).y == 0);
     // two character, index: 0
-    try expect(toXY("ab", 0).x == 1);
-    try expect(toXY("ab", 0).y == 1);
-    try expect(toXY("a\n", 0).x == 1);
-    try expect(toXY("a\n", 0).y == 1);
-    try expect(toXY("\na", 0).x == 1);
-    try expect(toXY("\na", 0).y == 1);
-    try expect(toXY("\n\n", 0).x == 1);
-    try expect(toXY("\n\n", 0).y == 1);
+    try expect(toXY("ab", 0).x == 0);
+    try expect(toXY("ab", 0).y == 0);
+    try expect(toXY("a\n", 0).x == 0);
+    try expect(toXY("a\n", 0).y == 0);
+    try expect(toXY("\na", 0).x == 0);
+    try expect(toXY("\na", 0).y == 0);
+    try expect(toXY("\n\n", 0).x == 0);
+    try expect(toXY("\n\n", 0).y == 0);
     // two character, index: 1
-    try expect(toXY("ab", 1).x == 2);
-    try expect(toXY("ab", 1).y == 1);
-    try expect(toXY("a\n", 1).x == 2);
-    try expect(toXY("a\n", 1).y == 1);
-    try expect(toXY("\na", 1).x == 1);
-    try expect(toXY("\na", 1).y == 2);
-    try expect(toXY("\n\n", 1).x == 1);
-    try expect(toXY("\n\n", 1).y == 2);
+    try expect(toXY("ab", 1).x == 1);
+    try expect(toXY("ab", 1).y == 0);
+    try expect(toXY("a\n", 1).x == 1);
+    try expect(toXY("a\n", 1).y == 0);
+    try expect(toXY("\na", 1).x == 0);
+    try expect(toXY("\na", 1).y == 1);
+    try expect(toXY("\n\n", 1).x == 0);
+    try expect(toXY("\n\n", 1).y == 1);
     // two character, index: 2
-    try expect(toXY("ab", 2).x == 2);
-    try expect(toXY("ab", 2).y == 1);
-    try expect(toXY("a\n", 2).x == 2);
-    try expect(toXY("a\n", 2).y == 1);
-    try expect(toXY("\na", 2).x == 1);
-    try expect(toXY("\na", 2).y == 2);
-    try expect(toXY("\n\n", 2).x == 1);
-    try expect(toXY("\n\n", 2).y == 2);
+    try expect(toXY("ab", 2).x == 1);
+    try expect(toXY("ab", 2).y == 0);
+    try expect(toXY("a\n", 2).x == 1);
+    try expect(toXY("a\n", 2).y == 0);
+    try expect(toXY("\na", 2).x == 0);
+    try expect(toXY("\na", 2).y == 1);
+    try expect(toXY("\n\n", 2).x == 0);
+    try expect(toXY("\n\n", 2).y == 1);
     // three character, index: 0
-    try expect(toXY("abc", 0).x == 1);
-    try expect(toXY("abc", 0).y == 1);
-    try expect(toXY("ab\n", 0).x == 1);
-    try expect(toXY("ab\n", 0).y == 1);
-    try expect(toXY("a\nc", 0).x == 1);
-    try expect(toXY("a\nc", 0).y == 1);
-    try expect(toXY("\nbc", 0).x == 1);
-    try expect(toXY("\nbc", 0).y == 1);
-    try expect(toXY("a\n\n", 0).x == 1);
-    try expect(toXY("a\n\n", 0).y == 1);
-    try expect(toXY("\nb\n", 0).x == 1);
-    try expect(toXY("\nb\n", 0).y == 1);
-    try expect(toXY("\n\nc", 0).x == 1);
-    try expect(toXY("\n\nc", 0).y == 1);
-    try expect(toXY("\n\n\n", 0).x == 1);
-    try expect(toXY("\n\n\n", 0).y == 1);
+    try expect(toXY("abc", 0).x == 0);
+    try expect(toXY("abc", 0).y == 0);
+    try expect(toXY("ab\n", 0).x == 0);
+    try expect(toXY("ab\n", 0).y == 0);
+    try expect(toXY("a\nc", 0).x == 0);
+    try expect(toXY("a\nc", 0).y == 0);
+    try expect(toXY("\nbc", 0).x == 0);
+    try expect(toXY("\nbc", 0).y == 0);
+    try expect(toXY("a\n\n", 0).x == 0);
+    try expect(toXY("a\n\n", 0).y == 0);
+    try expect(toXY("\nb\n", 0).x == 0);
+    try expect(toXY("\nb\n", 0).y == 0);
+    try expect(toXY("\n\nc", 0).x == 0);
+    try expect(toXY("\n\nc", 0).y == 0);
+    try expect(toXY("\n\n\n", 0).x == 0);
+    try expect(toXY("\n\n\n", 0).y == 0);
     // three character, index: 1
-    try expect(toXY("abc", 1).x == 2);
-    try expect(toXY("abc", 1).y == 1);
-    try expect(toXY("ab\n", 1).x == 2);
-    try expect(toXY("ab\n", 1).y == 1);
-    try expect(toXY("a\nc", 1).x == 2);
-    try expect(toXY("a\nc", 1).y == 1);
-    try expect(toXY("\nbc", 1).x == 1);
-    try expect(toXY("\nbc", 1).y == 2);
-    try expect(toXY("a\n\n", 1).x == 2);
-    try expect(toXY("a\n\n", 1).y == 1);
-    try expect(toXY("\nb\n", 1).x == 1);
-    try expect(toXY("\nb\n", 1).y == 2);
-    try expect(toXY("\n\nc", 1).x == 1);
-    try expect(toXY("\n\nc", 1).y == 2);
-    try expect(toXY("\n\n\n", 1).x == 1);
-    try expect(toXY("\n\n\n", 1).y == 2);
+    try expect(toXY("abc", 1).x == 1);
+    try expect(toXY("abc", 1).y == 0);
+    try expect(toXY("ab\n", 1).x == 1);
+    try expect(toXY("ab\n", 1).y == 0);
+    try expect(toXY("a\nc", 1).x == 1);
+    try expect(toXY("a\nc", 1).y == 0);
+    try expect(toXY("\nbc", 1).x == 0);
+    try expect(toXY("\nbc", 1).y == 1);
+    try expect(toXY("a\n\n", 1).x == 1);
+    try expect(toXY("a\n\n", 1).y == 0);
+    try expect(toXY("\nb\n", 1).x == 0);
+    try expect(toXY("\nb\n", 1).y == 1);
+    try expect(toXY("\n\nc", 1).x == 0);
+    try expect(toXY("\n\nc", 1).y == 1);
+    try expect(toXY("\n\n\n", 1).x == 0);
+    try expect(toXY("\n\n\n", 1).y == 1);
     // three character, index: 2
-    try expect(toXY("abc", 2).x == 3);
-    try expect(toXY("abc", 2).y == 1);
-    try expect(toXY("ab\n", 2).x == 3);
-    try expect(toXY("ab\n", 2).y == 1);
-    try expect(toXY("a\nc", 2).x == 1);
-    try expect(toXY("a\nc", 2).y == 2);
-    try expect(toXY("\nbc", 2).x == 2);
-    try expect(toXY("\nbc", 2).y == 2);
-    try expect(toXY("a\n\n", 2).x == 1);
-    try expect(toXY("a\n\n", 2).y == 2);
-    try expect(toXY("\nb\n", 2).x == 2);
-    try expect(toXY("\nb\n", 2).y == 2);
-    try expect(toXY("\n\nc", 2).x == 1);
-    try expect(toXY("\n\nc", 2).y == 3);
-    try expect(toXY("\n\n\n", 2).x == 1);
-    try expect(toXY("\n\n\n", 2).y == 3);
+    try expect(toXY("abc", 2).x == 2);
+    try expect(toXY("abc", 2).y == 0);
+    try expect(toXY("ab\n", 2).x == 2);
+    try expect(toXY("ab\n", 2).y == 0);
+    try expect(toXY("a\nc", 2).x == 0);
+    try expect(toXY("a\nc", 2).y == 1);
+    try expect(toXY("\nbc", 2).x == 1);
+    try expect(toXY("\nbc", 2).y == 1);
+    try expect(toXY("a\n\n", 2).x == 0);
+    try expect(toXY("a\n\n", 2).y == 1);
+    try expect(toXY("\nb\n", 2).x == 1);
+    try expect(toXY("\nb\n", 2).y == 1);
+    try expect(toXY("\n\nc", 2).x == 0);
+    try expect(toXY("\n\nc", 2).y == 2);
+    try expect(toXY("\n\n\n", 2).x == 0);
+    try expect(toXY("\n\n\n", 2).y == 2);
     // three character, index: 3
-    try expect(toXY("abc", 3).x == 3);
-    try expect(toXY("abc", 3).y == 1);
-    try expect(toXY("ab\n", 3).x == 3);
-    try expect(toXY("ab\n", 3).y == 1);
-    try expect(toXY("a\nc", 3).x == 1);
-    try expect(toXY("a\nc", 3).y == 2);
-    try expect(toXY("\nbc", 3).x == 2);
-    try expect(toXY("\nbc", 3).y == 2);
-    try expect(toXY("a\n\n", 3).x == 1);
-    try expect(toXY("a\n\n", 3).y == 2);
-    try expect(toXY("\nb\n", 3).x == 2);
-    try expect(toXY("\nb\n", 3).y == 2);
-    try expect(toXY("\n\nc", 3).x == 1);
-    try expect(toXY("\n\nc", 3).y == 3);
-    try expect(toXY("\n\n\n", 3).x == 1);
-    try expect(toXY("\n\n\n", 3).y == 3);
+    try expect(toXY("abc", 3).x == 2);
+    try expect(toXY("abc", 3).y == 0);
+    try expect(toXY("ab\n", 3).x == 2);
+    try expect(toXY("ab\n", 3).y == 0);
+    try expect(toXY("a\nc", 3).x == 0);
+    try expect(toXY("a\nc", 3).y == 1);
+    try expect(toXY("\nbc", 3).x == 1);
+    try expect(toXY("\nbc", 3).y == 1);
+    try expect(toXY("a\n\n", 3).x == 0);
+    try expect(toXY("a\n\n", 3).y == 1);
+    try expect(toXY("\nb\n", 3).x == 1);
+    try expect(toXY("\nb\n", 3).y == 1);
+    try expect(toXY("\n\nc", 3).x == 0);
+    try expect(toXY("\n\nc", 3).y == 2);
+    try expect(toXY("\n\n\n", 3).x == 0);
+    try expect(toXY("\n\n\n", 3).y == 2);
 }
 fn toXY(text: []const u8, index: usize) Position {
     if (text.len == 0) return Position{ .x = 0, .y = 0 };
-    var x: usize = 0; var y: usize = 1; var ny: usize = 0;
+    var x: usize = 0; var y: usize = 0; var ny: usize = 0;
     for(text) |char, i| {
         if (ny > 0) { y = ny; ny = 0; x = 0; }
         x += 1;
@@ -445,7 +447,7 @@ fn toXY(text: []const u8, index: usize) Position {
         }
         if (i == index) break;
     }
-    return Position{ .x = x, .y = y };
+    return Position{ .x = x - 1, .y = y};
 }
 
 test "cursorUp" {
@@ -453,13 +455,13 @@ test "cursorUp" {
     try expect(newLine(allocator));
     try expect(writeChar('a', allocator));
     try expect(cursorUp());
-    try expect(toXY(textbuffer, cursor_index).x == 1);
+    try expect(toXY(textbuffer, cursor_index).x == 0);
     allocator.free(textbuffer);
 }
 fn cursorUp() bool {
     const pos = toXY(textbuffer, cursor_index); 
-    if (pos.y > 1 and cursor_index > 0) {
-        if (pos.y == 1) {
+    if (pos.y > 0 and cursor_index > 0) {
+        if (pos.y == 0) {
             message = "SCROLL DOWN!        ";
             return true;
         }
