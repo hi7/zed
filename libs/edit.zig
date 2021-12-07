@@ -495,7 +495,7 @@ fn cursorDown() bool {
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
             if(index > cursor_index) {
-                cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1));
+                cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
                 const x = toXY(textbuffer, cursor_index).x;
                 if (x > last_x) last_x = x;
                 return true;
