@@ -22,6 +22,14 @@ var length: usize = undefined;
 const keyCodeOffset = 21;
 const chunk = 4096;
 
+
+fn min(comptime T: type, a: T, b: T) T {
+    return if (a < b) a else b;
+}
+fn max(comptime T: type, a: T, b: T) T {
+    return if (a > b) a else b;
+}
+
 pub const ControlKey = enum(u8) {
     backspace = 0x7f, 
     pub fn isControlKey(char: u8) bool {
@@ -38,8 +46,8 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
         defer file.close();
         length = file.getEndPos() catch @panic("file seek error!");
         // extent to multiple of chunk and add one chunk
-        const max = multipleOf(chunk, length) + chunk;
-        textbuffer = allocator.alloc(u8, max) catch @panic("OutOfMemory");
+        const buffer_length = multipleOf(chunk, length) + chunk;
+        textbuffer = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
         //try file.seekTo(0);
         const bytes_read = file.readAll(textbuffer) catch @panic("File too large!");
         assert(bytes_read == length);
@@ -225,9 +233,6 @@ inline fn nextBreak(text: []const u8, start: usize, count: usize) usize {
         if(text[index] == '\n') found += 1;
     }
     return index;
-}
-fn min(comptime T: type, a: T, b: T) T {
-    return if (a < b) a else b;
 }
 inline fn endOfPageIndex() usize {
     return nextBreak(textbuffer, 0, @as(usize, height - 2));
@@ -463,9 +468,9 @@ test "cursorUp" {
 }
 fn cursorUp() bool {
     const pos = toXY(textbuffer, cursor_index); 
-    if (pos.y > 0 and cursor_index > 0) {
+    if (cursor_index > 0) {
         if (pos.y == 0) {
-            message = "SCROLL DOWN!        ";
+            cursor_index = 0;
             return true;
         }
         var index: usize = undefined;
@@ -476,7 +481,7 @@ fn cursorUp() bool {
             if(index > 0) index += 1;
         }
         if(index < cursor_index) {
-            cursor_index = index;
+            cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
             return true;
         }
     }
@@ -489,9 +494,10 @@ fn cursorDown() bool {
             return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
-            print("index: {d}", .{index});
             if(index > cursor_index) {
-                cursor_index = index;
+                cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1));
+                const x = toXY(textbuffer, cursor_index).x;
+                if (x > last_x) last_x = x;
                 return true;
             }
         }
