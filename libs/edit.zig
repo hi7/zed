@@ -313,23 +313,6 @@ fn backspace() bool {
     }
     return false;
 }
-test "emptyLine" {
-    try expect(isEmptyLine("", 0));
-    try expect(isEmptyLine("\n", 0));
-    try expect(!isEmptyLine("a", 0));
-    try expect(isEmptyLine("\n\n", 0));
-    try expect(isEmptyLine("\na\n", 0));
-    try expect(!isEmptyLine("\na\n", 1));
-}
-fn isEmptyLine(text: []const u8, index: usize) bool {
-    if (text.len == 0) return true;
-    if (index > 0 and index < text.len - 1) {
-        return text[index] == '\n' and text[index - 1] == '\n';
-    } else {
-        return text[index] == '\n';
-    }
-    return false;
-}
 test "toXY" {
     // empty text
     try expect(toXY("", 0).x == 0);
@@ -453,6 +436,23 @@ fn toXY(text: []const u8, index: usize) Position {
     return Position{ .x = x - 1, .y = y};
 }
 
+test "emptyLine" {
+    try expect(isEmptyLine("", 0));
+    try expect(isEmptyLine("\n", 0));
+    try expect(!isEmptyLine("a", 0));
+    try expect(isEmptyLine("\n\n", 0));
+    try expect(isEmptyLine("\na\n", 0));
+    try expect(!isEmptyLine("\na\n", 1));
+}
+fn isEmptyLine(text: []const u8, index: usize) bool {
+    if (text.len == 0) return true;
+    if (index > 0 and index < text.len - 1) {
+        return text[index] == '\n' and text[index - 1] == '\n';
+    } else {
+        return text[index] == '\n';
+    }
+    return false;
+}
 test "cursorUp" {
     const allocator = std.testing.allocator;
     try expect(newLine(allocator));
