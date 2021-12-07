@@ -17,8 +17,10 @@ var width: u16 = 80;
 var height: u16 = 25;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
+var file: std.fs.File = undefined;
 var textbuffer: []u8 = "";
 var length: usize = undefined;
+var modified = false;
 const keyCodeOffset = 21;
 const chunk = 4096;
 
@@ -39,19 +41,27 @@ pub const ControlKey = enum(u8) {
         return false;
     }
 };
-pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
-    if(filepath != null) {
-        filename = filepath.?;
-        const file = try std.fs.cwd().openFile(filename, .{ .read = true });
-        defer file.close();
-        length = file.getEndPos() catch @panic("file seek error!");
-        // extent to multiple of chunk and add one chunk
-        const buffer_length = multipleOf(chunk, length) + chunk;
-        textbuffer = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
-        //try file.seekTo(0);
-        const bytes_read = file.readAll(textbuffer) catch @panic("File too large!");
-        assert(bytes_read == length);
+pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
+    filename = filepath;
+    file = try std.fs.cwd().openFile(filename, .{ .read = true, .write = true });
+    length = file.getEndPos() catch @panic("file seek error!");
+    // extent to multiple of chunk and add one chunk
+    const buffer_length = multipleOf(chunk, length) + chunk;
+    textbuffer = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
+    //try file.seekTo(0);
+    const bytes_read = file.readAll(textbuffer) catch @panic("File too large!");
+    assert(bytes_read == length);
+    message = "";
+}
+pub fn saveFile() !void {
+    if (filename.len > 0) {
+        try file.seekTo(0);
+        _ = try file.write(textbuffer[0..length]);
+        modified = false;
     }
+}
+pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
+    if(filepath != null) try loadFile(filepath.?, allocator);
     defer allocator.free(textbuffer);
 
     term.updateWindowSize();
@@ -71,6 +81,10 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     term.cookedMode();
     term.clearScreen();
     term.cursorHome();
+
+    if (filename.len > 0) {
+        defer file.close();
+    } 
 }
 
 inline fn multipleOf(mul: usize, len: usize) usize {
@@ -90,6 +104,11 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
             update = newLine(allocator);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
             update = writeChar(c, allocator);
+        }
+        if (c == term.ctrlKey('s')) {
+            saveFile() catch |err| {
+                message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
+            };
         }
         if (c == @enumToInt(ControlKey.backspace) and toXY(textbuffer, cursor_index).x > 0) update = backspace();
     } else if (key.len == 3) {
@@ -155,11 +174,13 @@ inline fn menuBar(allocator: Allocator) void {
     term.cursorHome();
     repearChar(' ', width);
 
+    term.setCursor(Position{ .x = width - 26, .y = 0}, allocator);
+    shortCut('S', "ave: Ctrl-s", allocator);
     term.setCursor(Position{ .x = width - 13, .y = 0}, allocator);
     shortCut('Q', "uit: Ctrl-q", allocator);
 }
-fn fileColor(modified: bool) Color {
-    return if(modified) Color.yellow else Color.white;
+fn fileColor(changed: bool) Color {
+    return if(changed) Color.yellow else Color.white;
 }
 
 var offset_y: usize = 1;
@@ -173,22 +194,16 @@ fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
 }
 
+inline fn mod(changed: bool) []const u8 {
+    return if (changed) "*" else "";
+}
+
 pub var message: []const u8 = "READY.";
 pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const pos = toXY(textbuffer, cursor_index);
-    if (cursor_index < textbuffer.len) {
-        if (std.ascii.isAlNum(textbuffer[cursor_index]) or std.ascii.isGraph(textbuffer[cursor_index])) {
-            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:{c} {s}  x:{d} ",
-              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message, last_x});
-        } else {
-            print("L{d}:C{d}:I{d}:\xce\xa3{d} ch:0x{x} {s}  x:{d} ", 
-              .{pos.y, pos.x, cursor_index, length, textbuffer[cursor_index], message, last_x});
-        }
-    } else {
-        print("L{d}:C{d}:I{d}:\xce\xa3{d} {s}  x:{d} ", .{pos.y, pos.x, cursor_index, length, message, last_x});
-    }
+    print("L{d}:C{d} {s}{s} {s}", .{pos.y, pos.x, filename, mod(modified), message});
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
@@ -303,6 +318,8 @@ fn newLine(allocator: Allocator) bool {
 }
 fn writeChar(char: u8, allocator: Allocator) bool {
     extendBuffer(allocator);
+    if (textbuffer.len > 0 and char == textbuffer[cursor_index]) return false;
+    
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
     length += 1;

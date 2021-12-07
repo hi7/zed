@@ -1,2 +1,2 @@
 # zed
-Display file contents and key codes in terminal
+Edit file contents and show typed key codes in terminal
