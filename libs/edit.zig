@@ -110,14 +110,14 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
             };
         }
-        if (c == @enumToInt(ControlKey.backspace) and toXY(textbuffer, cursor_index).x > 0) update = backspace();
+        if (c == @enumToInt(ControlKey.backspace) and toXY(textbuffer, cursor_index).x > 0) update = backspace(allocator);
     } else if (key.len == 3) {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = cursorRight();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = cursorLeft();
     }
-    if (update) resetScreen(allocator);
+    //if (update) writeScreen(allocator);
 }
 
 pub fn updateSize(allocator: Allocator) void {
@@ -256,16 +256,13 @@ inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
     term.setCursor(Position{ .x = 0, .y = 1}, allocator);
     term.write(textbuffer[0..endOfPageIndex()]);
+    term.write(" ");
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 fn writeScreen(allocator: Allocator) void {
     menuBar(allocator);
     statusBar(allocator);
     showTextBuffer(allocator);
-}
-fn resetScreen(allocator: Allocator) void {
-    term.clearScreen();
-    writeScreen(allocator);
 }
 
 fn shiftLeft() void {
@@ -322,15 +319,23 @@ fn writeChar(char: u8, allocator: Allocator) bool {
     
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
+    term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
+    term.writeByte(char);
     length += 1;
     assert(cursorRight());
     return true;
 }
-fn backspace() bool {
+fn backspace(allocator: Allocator) bool {
     if (cursor_index > 0) {
         shiftLeft();
         length -= 1;
         assert(cursorLeft());
+        term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
+        var i = cursor_index;
+        while(textbuffer[i] != '\n' and i<length) : (i+=1) {
+            term.writeByte(textbuffer[i]);
+        }
+        term.writeByte(' ');
         return true;
     }
     return false;
