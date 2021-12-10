@@ -116,7 +116,6 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = cursorRight();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = cursorLeft();
     }
-    //if (update) writeScreen(allocator);
 }
 
 pub fn updateSize(allocator: Allocator) void {
@@ -202,7 +201,7 @@ pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const pos = toXY(textbuffer, cursor_index);
-    print("L{d}:C{d} {s}{s} {s}", .{pos.y, pos.x, filename, mod(modified), message});
+    print("L{d}:C{d} {s}{s} {s}", .{pos.y + 1, pos.x + 1, filename, mod(modified), message});
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
@@ -509,13 +508,15 @@ fn cursorUp() bool {
     return false;
 }
 fn cursorDown() bool {
-    if(cursor_index < length) {
+    if(cursor_index <= length) {
         if (toXY(textbuffer, cursor_index).x == height - 1) {
             message = "SCROLL UP!          ";
             return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
-            if(index > cursor_index) {
+            if (index == length and textbuffer[length - 1] == '\n') {
+                cursor_index = index;
+            } else if(index > cursor_index) {
                 cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
                 const x = toXY(textbuffer, cursor_index).x;
                 if (x > last_x) last_x = x;
