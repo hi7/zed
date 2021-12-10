@@ -97,7 +97,6 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         .x = term.config.width - keyCodeOffset + 10, 
         .y = term.config.height}, 
         allocator);
-    term.setCursor(toXY(textbuffer, cursor_index), allocator);
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
