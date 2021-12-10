@@ -109,7 +109,7 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
             };
         }
-        if (c == @enumToInt(ControlKey.backspace) and toXY(textbuffer, cursor_index).x > 0) update = backspace(allocator);
+        if (c == @enumToInt(ControlKey.backspace)) update = backspace(allocator);
     } else if (key.len == 3) {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown();
@@ -514,7 +514,7 @@ fn cursorDown() bool {
             return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
-            if (index == length and textbuffer[length - 1] == '\n') {
+            if (index == length and length > 0 and textbuffer[length - 1] == '\n') {
                 cursor_index = index;
             } else if(index > cursor_index) {
                 cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
