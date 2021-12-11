@@ -307,6 +307,8 @@ fn newLine(allocator: Allocator) void {
     text[cursor_index] = '\n';
     length += 1;
     cursorRight();
+    term.clearScreen();
+    writeScreen(allocator);
 }
 fn writeChar(char: u8, allocator: Allocator) void {
     extendBuffer(allocator);
