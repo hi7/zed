@@ -48,7 +48,7 @@ pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
     length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
     const expected_length = multipleOf(chunk, length) + chunk;
-    text = allocator.alloc(u8, expected_length) catch @panic("OutOfMemory");
+    text = allocator.alloc(u8, expected_length) catch @panic(OOM);
     const bytes_read = file.readAll(text) catch @panic("File too large!");
     assert(bytes_read == length);
     message = "";
@@ -69,6 +69,7 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     defer allocator.free(text);
 
     term.updateWindowSize();
+    textbuffer = allocator.alloc(u8, width * height * 4) catch @panic(OOM); // four times security
     term.rawMode(5);
 
     var key: term.KeyCode = undefined;
@@ -81,6 +82,7 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
         showStatus(allocator);
     }
 
+    allocator.free(textbuffer);
     term.resetMode();
     term.cookedMode();
     term.clearScreen();
