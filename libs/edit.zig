@@ -19,6 +19,7 @@ var cursor_index: usize = 0;
 var filename: []u8 = "";
 var file: std.fs.File = undefined;
 var text: []u8 = "";
+var textbuffer: []u8 = undefined;
 var length: usize = undefined;
 var modified = false;
 const keyCodeOffset = 21;
@@ -200,8 +201,8 @@ pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const pos = toXY(text, cursor_index);
-    print("L{d}:C{d} {s}{s} {s} --{d}--   ", 
-    .{pos.y + 1, pos.x + 1, filename, mod(modified), message, pageOffset});
+    print("L{d}:C{d} {s}{s} {s}   ", 
+    .{pos.y + 1, pos.x + 1, filename, mod(modified), message});
     setTextCursor(toXY(text, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
@@ -320,6 +321,8 @@ fn writeChar(char: u8, allocator: Allocator) void {
     term.writeByte(char);
     length += 1;
     cursorRight();
+    term.clearScreen();
+    writeScreen(allocator);
 }
 fn backspace(allocator: Allocator) void {
     if (cursor_index > 0) {
@@ -548,4 +551,5 @@ fn writeKeyCodes(sequence: [4]u8, len: usize, pos: Position, allocator: Allocato
     if(len == 3) print("{x} {x} {x}", .{sequence[0], sequence[1], sequence[2]});
     if(len == 4) print("{x} {x} {x} {x}", .{sequence[0], sequence[1], sequence[2], sequence[3]});
     term.resetMode();
-}
+} term.resetMode();
+}}
