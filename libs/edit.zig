@@ -111,8 +111,8 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         }
         if (c == @enumToInt(ControlKey.backspace)) update = backspace(allocator);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp();
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp(allocator);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown(allocator);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = cursorRight();
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = cursorLeft();
     }
@@ -181,11 +181,11 @@ fn fileColor(changed: bool) Color {
     return if(changed) Color.yellow else Color.white;
 }
 
-var offset_y: usize = 1;
+var offset_y: isize = 1;
 inline fn positionOnScreen(pos: Position) Position {
     return Position{ 
         .x = pos.x, 
-        .y = pos.y + offset_y
+        .y = @intCast(usize, @intCast(isize, pos.y) + offset_y),
     };
 }
 fn setTextCursor(pos: Position, allocator: Allocator) void {
@@ -201,7 +201,8 @@ pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const pos = toXY(textbuffer, cursor_index);
-    print("L{d}:C{d} {s}{s} {s}", .{pos.y + 1, pos.x + 1, filename, mod(modified), message});
+    print("L{d}:C{d} {s}{s} {s} --{d}--   ", 
+    .{pos.y + 1, pos.x + 1, filename, mod(modified), message, pageOffset});
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
@@ -247,14 +248,16 @@ inline fn nextBreak(text: []const u8, start: usize, count: usize) usize {
     }
     return index;
 }
-inline fn endOfPageIndex() usize {
-    return nextBreak(textbuffer, 0, @as(usize, height - 2));
+inline fn endOfPageIndex(offset: usize) usize {
+    return nextBreak(textbuffer, offset, @as(usize, height - 2));
 }
+var pageOffset: usize = 0;
 inline fn showTextBuffer(allocator: Allocator) void {
     term.resetMode();
     term.setCursor(Position{ .x = 0, .y = 1}, allocator);
-    term.write(textbuffer[0..endOfPageIndex()]);
-    term.write(" ");
+    var i = endOfPageIndex(pageOffset);
+    term.write(textbuffer[pageOffset..i]);
+    var x = toXY(textbuffer, i).x;
     setTextCursor(toXY(textbuffer, cursor_index), allocator);
 }
 fn writeScreen(allocator: Allocator) void {
@@ -486,38 +489,54 @@ test "cursorUp" {
     try expect(toXY(textbuffer, cursor_index).x == 0);
     allocator.free(textbuffer);
 }
-fn cursorUp() bool {
-    const pos = toXY(textbuffer, cursor_index); 
+fn up(a_text: []const u8, start_index: usize) usize {
+    var index: usize = undefined;
+    if (isEmptyLine(a_text, start_index - 1)) {
+        index = previousBreak(a_text, start_index - 1, 1);
+    } else {
+        index = previousBreak(a_text, start_index - 1, 2);
+        if(index > 0) index += 1;
+    }
+    return index;
+}
+fn toLastX(a_text: []const u8, index: usize) usize {
+    return min(usize, index + last_x, nextBreak(a_text, index, 1) - 1);
+}
+fn cursorUp(allocator: Allocator) bool {
     if (cursor_index > 0) {
-        if (pos.y == 0) {
-            cursor_index = 0;
+        if (positionOnScreen(toXY(textbuffer, cursor_index)).y == 1 and pageOffset > 0) {
+            pageOffset = up(textbuffer, pageOffset);
+            cursor_index = up(textbuffer, cursor_index);
+            cursor_index = toLastX(textbuffer, cursor_index);
+            offset_y += 1;
+            term.clearScreen();
+            writeScreen(allocator);
             return true;
         }
-        var index: usize = undefined;
-        if (isEmptyLine(textbuffer, cursor_index - 1)) {
-            index = previousBreak(textbuffer, cursor_index - 1, 1);
-        } else {
-            index = previousBreak(textbuffer, cursor_index - 1, 2);
-            if(index > 0) index += 1;
-        }
+        const index = up(textbuffer, cursor_index);
         if(index < cursor_index) {
-            cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
+            cursor_index = toLastX(textbuffer, index);
             return true;
         }
     }
     return false;
 }
-fn cursorDown() bool {
-    if(cursor_index <= length) {
-        if (toXY(textbuffer, cursor_index).x == height - 1) {
-            message = "SCROLL UP!          ";
+fn cursorDown(allocator: Allocator) bool {
+    if(cursor_index < length) {
+        if (positionOnScreen(toXY(textbuffer, cursor_index)).y == height - 2) {
+            pageOffset = nextBreak(textbuffer, pageOffset, 1);
+            cursor_index = nextBreak(textbuffer, cursor_index, 1);
+            cursor_index = toLastX(textbuffer, cursor_index);
+            offset_y -= 1;
+            term.clearScreen();
+            writeScreen(allocator);
             return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
             if (index == length and length > 0 and textbuffer[length - 1] == '\n') {
                 cursor_index = index;
             } else if(index > cursor_index) {
-                cursor_index = min(usize, index + last_x, nextBreak(textbuffer, index, 1) - 1);
+                cursor_index = toLastX(textbuffer, index);
                 const x = toXY(textbuffer, cursor_index).x;
                 if (x > last_x) last_x = x;
                 return true;
