@@ -92,7 +92,6 @@ inline fn multipleOf(mul: usize, len: usize) usize {
 }
 
 pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
-    var update = false;
     writeKeyCodes(key.code, key.len, Position{
         .x = term.config.width - keyCodeOffset + 10, 
         .y = term.config.height}, 
@@ -100,21 +99,21 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
-            update = newLine(allocator);
+            newLine(allocator);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            update = writeChar(c, allocator);
+            writeChar(c, allocator);
         }
         if (c == term.ctrlKey('s')) {
             saveFile() catch |err| {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
             };
         }
-        if (c == @enumToInt(ControlKey.backspace)) update = backspace(allocator);
+        if (c == @enumToInt(ControlKey.backspace)) backspace(allocator);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) update = cursorUp(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) update = cursorDown(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) update = cursorRight();
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) update = cursorLeft();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) cursorUp(allocator);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) cursorDown(allocator);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) cursorLeft();
     }
 }
 
@@ -290,56 +289,48 @@ fn extendBuffer(allocator: Allocator) void {
     }
 }
 var last_x: usize = 0;
-fn cursorLeft() bool {
+fn cursorLeft() void {
     if (cursor_index > 0) {
         cursor_index -= 1;
         last_x = toXY(textbuffer, cursor_index).x;
-        return true;
     }
-    return false;
 }
-fn cursorRight() bool {
+fn cursorRight() void {
     if (cursor_index < length) {
         cursor_index += 1;
         last_x = toXY(textbuffer, cursor_index).x;
-        return true;
     }
-    return false;
 }
-fn newLine(allocator: Allocator) bool {
+fn newLine(allocator: Allocator) void {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = '\n';
     length += 1;
-    assert(cursorRight());
-    return  true;
+    cursorRight();
 }
-fn writeChar(char: u8, allocator: Allocator) bool {
+fn writeChar(char: u8, allocator: Allocator) void {
     extendBuffer(allocator);
-    if (textbuffer.len > 0 and char == textbuffer[cursor_index]) return false;
+    if (textbuffer.len > 0 and char == textbuffer[cursor_index]) return;
     
     if (cursor_index < length) shiftRight();
     textbuffer[cursor_index] = char;
     term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
     term.writeByte(char);
     length += 1;
-    assert(cursorRight());
-    return true;
+    cursorRight();
 }
-fn backspace(allocator: Allocator) bool {
+fn backspace(allocator: Allocator) void {
     if (cursor_index > 0) {
         shiftLeft();
         length -= 1;
-        assert(cursorLeft());
+        cursorLeft();
         term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
         var i = cursor_index;
         while(textbuffer[i] != '\n' and i<length) : (i+=1) {
             term.writeByte(textbuffer[i]);
         }
         term.writeByte(' ');
-        return true;
     }
-    return false;
 }
 test "toXY" {
     // empty text
@@ -502,7 +493,7 @@ fn up(a_text: []const u8, start_index: usize) usize {
 fn toLastX(a_text: []const u8, index: usize) usize {
     return min(usize, index + last_x, nextBreak(a_text, index, 1) - 1);
 }
-fn cursorUp(allocator: Allocator) bool {
+fn cursorUp(allocator: Allocator) void {
     if (cursor_index > 0) {
         if (positionOnScreen(toXY(textbuffer, cursor_index)).y == 1 and pageOffset > 0) {
             pageOffset = up(textbuffer, pageOffset);
@@ -511,17 +502,15 @@ fn cursorUp(allocator: Allocator) bool {
             offset_y += 1;
             term.clearScreen();
             writeScreen(allocator);
-            return true;
+            return;
         }
         const index = up(textbuffer, cursor_index);
         if(index < cursor_index) {
             cursor_index = toLastX(textbuffer, index);
-            return true;
         }
     }
-    return false;
 }
-fn cursorDown(allocator: Allocator) bool {
+fn cursorDown(allocator: Allocator) void {
     if(cursor_index < length) {
         if (positionOnScreen(toXY(textbuffer, cursor_index)).y == height - 2) {
             pageOffset = nextBreak(textbuffer, pageOffset, 1);
@@ -530,7 +519,6 @@ fn cursorDown(allocator: Allocator) bool {
             offset_y -= 1;
             term.clearScreen();
             writeScreen(allocator);
-            return true;
         } else {
             const index = nextBreak(textbuffer, cursor_index, 1);
             if (index == length and length > 0 and textbuffer[length - 1] == '\n') {
@@ -539,11 +527,9 @@ fn cursorDown(allocator: Allocator) bool {
                 cursor_index = toLastX(textbuffer, index);
                 const x = toXY(textbuffer, cursor_index).x;
                 if (x > last_x) last_x = x;
-                return true;
             }
         }
     }
-    return false;
 }
 
 fn writeKeyCodes(sequence: [4]u8, len: usize, pos: Position, allocator: Allocator) void {
