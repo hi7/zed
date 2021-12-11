@@ -17,7 +17,6 @@ var width: u16 = 80;
 var height: u16 = 25;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
-var file: std.fs.File = undefined;
 var text: []u8 = "";
 var textbuffer: []u8 = undefined;
 var length: usize = undefined;
@@ -44,20 +43,24 @@ pub const ControlKey = enum(u8) {
 };
 pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
     filename = filepath;
-    file = try std.fs.cwd().openFile(filename, .{ .read = true, .write = true });
+    const file = try std.fs.cwd().openFile(filename, .{ .read = true });
+    defer file.close();
     length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
-    const buffer_length = multipleOf(chunk, length) + chunk;
-    text = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
-    //try file.seekTo(0);
+    const expected_length = multipleOf(chunk, length) + chunk;
+    text = allocator.alloc(u8, expected_length) catch @panic("OutOfMemory");
     const bytes_read = file.readAll(text) catch @panic("File too large!");
     assert(bytes_read == length);
     message = "";
 }
 pub fn saveFile() !void {
     if (filename.len > 0) {
-        try file.seekTo(0);
+        const file = try std.fs.cwd().openFile(filename, .{ .write = true });
+        defer file.close();
         _ = try file.write(text[0..length]);
+        _ = try file.setEndPos(length);
+        const stat = try file.stat();
+        assert(stat.size == length);
         modified = false;
     }
 }
@@ -82,10 +85,6 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     term.cookedMode();
     term.clearScreen();
     term.cursorHome();
-
-    if (filename.len > 0) {
-        defer file.close();
-    } 
 }
 
 inline fn multipleOf(mul: usize, len: usize) usize {
