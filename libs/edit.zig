@@ -18,7 +18,7 @@ var height: u16 = 25;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
 var file: std.fs.File = undefined;
-var textbuffer: []u8 = "";
+var text: []u8 = "";
 var length: usize = undefined;
 var modified = false;
 const keyCodeOffset = 21;
@@ -47,22 +47,22 @@ pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
     length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
     const buffer_length = multipleOf(chunk, length) + chunk;
-    textbuffer = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
+    text = allocator.alloc(u8, buffer_length) catch @panic("OutOfMemory");
     //try file.seekTo(0);
-    const bytes_read = file.readAll(textbuffer) catch @panic("File too large!");
+    const bytes_read = file.readAll(text) catch @panic("File too large!");
     assert(bytes_read == length);
     message = "";
 }
 pub fn saveFile() !void {
     if (filename.len > 0) {
         try file.seekTo(0);
-        _ = try file.write(textbuffer[0..length]);
+        _ = try file.write(text[0..length]);
         modified = false;
     }
 }
 pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     if(filepath != null) try loadFile(filepath.?, allocator);
-    defer allocator.free(textbuffer);
+    defer allocator.free(text);
 
     term.updateWindowSize();
     term.rawMode(5);
@@ -199,10 +199,10 @@ pub var message: []const u8 = "READY.";
 pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
-    const pos = toXY(textbuffer, cursor_index);
+    const pos = toXY(text, cursor_index);
     print("L{d}:C{d} {s}{s} {s} --{d}--   ", 
     .{pos.y + 1, pos.x + 1, filename, mod(modified), message, pageOffset});
-    setTextCursor(toXY(textbuffer, cursor_index), allocator);
+    setTextCursor(toXY(text, cursor_index), allocator);
 }
 inline fn statusBar(allocator: Allocator) void {
     setStatusBarMode(allocator);
@@ -230,91 +230,91 @@ test "previousBreak" {
     try expect(previousBreak("a\n\nb\nc", 4, 2) == 2);
     //print("previousBreak(>>a\\n\\nb<<, 3, 2) = {d}\n", .{previousBreak("a\n\nb", 3, 2)});
 }
-inline fn previousBreak(text: []const u8, start: usize, count: u16) usize {
+inline fn previousBreak(a_text: []const u8, start: usize, count: u16) usize {
     var found: u16 = 0;
     var index = start;
     while(found<count and index > 0) : (index -= 1) {
-        if(text[index] == '\n') found += 1;
+        if(a_text[index] == '\n') found += 1;
         if (found==count) return index;
     }
     return index;
 }
-inline fn nextBreak(text: []const u8, start: usize, count: usize) usize {
+inline fn nextBreak(a_text: []const u8, start: usize, count: usize) usize {
     var found: u16 = 0;
     var index = start;
     while(found<count and index < length) : (index += 1) {
-        if(text[index] == '\n') found += 1;
+        if(a_text[index] == '\n') found += 1;
     }
     return index;
 }
 inline fn endOfPageIndex(offset: usize) usize {
-    return nextBreak(textbuffer, offset, @as(usize, height - 2));
+    return nextBreak(text, offset, @as(usize, height - 2));
 }
 var pageOffset: usize = 0;
-inline fn showTextBuffer(allocator: Allocator) void {
+inline fn showtext(allocator: Allocator) void {
     term.resetMode();
     term.setCursor(Position{ .x = 0, .y = 1}, allocator);
     var i = endOfPageIndex(pageOffset);
-    term.write(textbuffer[pageOffset..i]);
-    var x = toXY(textbuffer, i).x;
-    setTextCursor(toXY(textbuffer, cursor_index), allocator);
+    term.write(text[pageOffset..i]);
+    var x = toXY(text, i).x;
+    setTextCursor(toXY(text, cursor_index), allocator);
 }
 fn writeScreen(allocator: Allocator) void {
     menuBar(allocator);
     statusBar(allocator);
-    showTextBuffer(allocator);
+    showtext(allocator);
 }
 
 fn shiftLeft() void {
     var i = cursor_index;
     while(i < length) : (i += 1) {
-        textbuffer[i-1] = textbuffer[i];
+        text[i-1] = text[i];
     }
 }
 fn shiftRight() void {
     var i = length;
     while(i > cursor_index) : (i -= 1) {
-        textbuffer[i] = textbuffer[i-1];
+        text[i] = text[i-1];
     }
 }
 
 fn extendBuffer(allocator: Allocator) void {
-    if (textbuffer.len == 0 or cursor_index == textbuffer.len - 1) {
-        var buffer = allocator.alloc(u8, textbuffer.len + chunk) catch @panic(OOM);
+    if (text.len == 0 or cursor_index == text.len - 1) {
+        var buffer = allocator.alloc(u8, text.len + chunk) catch @panic(OOM);
         if (cursor_index < length) {
-            mem.copy(u8, buffer[0..cursor_index - 1], textbuffer[0..cursor_index - 1]);
+            mem.copy(u8, buffer[0..cursor_index - 1], text[0..cursor_index - 1]);
         }
-        allocator.free(textbuffer);
-        textbuffer = buffer;
+        allocator.free(text);
+        text = buffer;
     }
 }
 var last_x: usize = 0;
 fn cursorLeft() void {
     if (cursor_index > 0) {
         cursor_index -= 1;
-        last_x = toXY(textbuffer, cursor_index).x;
+        last_x = toXY(text, cursor_index).x;
     }
 }
 fn cursorRight() void {
     if (cursor_index < length) {
         cursor_index += 1;
-        last_x = toXY(textbuffer, cursor_index).x;
+        last_x = toXY(text, cursor_index).x;
     }
 }
 fn newLine(allocator: Allocator) void {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
-    textbuffer[cursor_index] = '\n';
+    text[cursor_index] = '\n';
     length += 1;
     cursorRight();
 }
 fn writeChar(char: u8, allocator: Allocator) void {
     extendBuffer(allocator);
-    if (textbuffer.len > 0 and char == textbuffer[cursor_index]) return;
+    if (text.len > 0 and char == text[cursor_index]) return;
     
     if (cursor_index < length) shiftRight();
-    textbuffer[cursor_index] = char;
-    term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
+    text[cursor_index] = char;
+    term.setCursor(positionOnScreen(toXY(text, cursor_index)), allocator);
     term.writeByte(char);
     length += 1;
     cursorRight();
@@ -324,10 +324,10 @@ fn backspace(allocator: Allocator) void {
         shiftLeft();
         length -= 1;
         cursorLeft();
-        term.setCursor(positionOnScreen(toXY(textbuffer, cursor_index)), allocator);
+        term.setCursor(positionOnScreen(toXY(text, cursor_index)), allocator);
         var i = cursor_index;
-        while(textbuffer[i] != '\n' and i<length) : (i+=1) {
-            term.writeByte(textbuffer[i]);
+        while(text[i] != '\n' and i<length) : (i+=1) {
+            term.writeByte(text[i]);
         }
         term.writeByte(' ');
     }
@@ -441,13 +441,13 @@ test "toXY" {
     try expect(toXY("\n\n\n", 3).x == 0);
     try expect(toXY("\n\n\n", 3).y == 2);
 }
-fn toXY(text: []const u8, index: usize) Position {
-    if (text.len == 0) return Position{ .x = 0, .y = 0 };
+fn toXY(a_text: []const u8, index: usize) Position {
+    if (a_text.len == 0) return Position{ .x = 0, .y = 0 };
     var x: usize = 0; var y: usize = 0; var ny: usize = 0;
-    for(text) |char, i| {
+    for(a_text) |char, i| {
         if (ny > 0) { y = ny; ny = 0; x = 0; }
         x += 1;
-        if (text[i] == '\n') {
+        if (a_text[i] == '\n') {
             ny = y + 1;
         }
         if (i == index) break;
@@ -463,22 +463,22 @@ test "emptyLine" {
     try expect(isEmptyLine("\na\n", 0));
     try expect(!isEmptyLine("\na\n", 1));
 }
-fn isEmptyLine(text: []const u8, index: usize) bool {
-    if (text.len == 0) return true;
-    if (index > 0 and index < text.len - 1) {
-        return text[index] == '\n' and text[index - 1] == '\n';
+fn isEmptyLine(a_text: []const u8, index: usize) bool {
+    if (a_text.len == 0) return true;
+    if (index > 0 and index < a_text.len - 1) {
+        return a_text[index] == '\n' and a_text[index - 1] == '\n';
     } else {
-        return text[index] == '\n';
+        return a_text[index] == '\n';
     }
     return false;
 }
 test "cursorUp" {
     const allocator = std.testing.allocator;
-    try expect(newLine(allocator));
-    try expect(writeChar('a', allocator));
-    try expect(cursorUp());
-    try expect(toXY(textbuffer, cursor_index).x == 0);
-    allocator.free(textbuffer);
+    newLine(allocator);
+    writeChar('a', allocator);
+    cursorUp(allocator);
+    try expect(toXY(text, cursor_index).x == 0);
+    allocator.free(text);
 }
 fn up(a_text: []const u8, start_index: usize) usize {
     var index: usize = undefined;
@@ -495,37 +495,37 @@ fn toLastX(a_text: []const u8, index: usize) usize {
 }
 fn cursorUp(allocator: Allocator) void {
     if (cursor_index > 0) {
-        if (positionOnScreen(toXY(textbuffer, cursor_index)).y == 1 and pageOffset > 0) {
-            pageOffset = up(textbuffer, pageOffset);
-            cursor_index = up(textbuffer, cursor_index);
-            cursor_index = toLastX(textbuffer, cursor_index);
+        if (positionOnScreen(toXY(text, cursor_index)).y == 1 and pageOffset > 0) {
+            pageOffset = up(text, pageOffset);
+            cursor_index = up(text, cursor_index);
+            cursor_index = toLastX(text, cursor_index);
             offset_y += 1;
             term.clearScreen();
             writeScreen(allocator);
             return;
         }
-        const index = up(textbuffer, cursor_index);
+        const index = up(text, cursor_index);
         if(index < cursor_index) {
-            cursor_index = toLastX(textbuffer, index);
+            cursor_index = toLastX(text, index);
         }
     }
 }
 fn cursorDown(allocator: Allocator) void {
     if(cursor_index < length) {
-        if (positionOnScreen(toXY(textbuffer, cursor_index)).y == height - 2) {
-            pageOffset = nextBreak(textbuffer, pageOffset, 1);
-            cursor_index = nextBreak(textbuffer, cursor_index, 1);
-            cursor_index = toLastX(textbuffer, cursor_index);
+        if (positionOnScreen(toXY(text, cursor_index)).y == height - 2) {
+            pageOffset = nextBreak(text, pageOffset, 1);
+            cursor_index = nextBreak(text, cursor_index, 1);
+            cursor_index = toLastX(text, cursor_index);
             offset_y -= 1;
             term.clearScreen();
             writeScreen(allocator);
         } else {
-            const index = nextBreak(textbuffer, cursor_index, 1);
-            if (index == length and length > 0 and textbuffer[length - 1] == '\n') {
+            const index = nextBreak(text, cursor_index, 1);
+            if (index == length and length > 0 and text[length - 1] == '\n') {
                 cursor_index = index;
             } else if(index > cursor_index) {
-                cursor_index = toLastX(textbuffer, index);
-                const x = toXY(textbuffer, cursor_index).x;
+                cursor_index = toLastX(text, index);
+                const x = toXY(text, cursor_index).x;
                 if (x > last_x) last_x = x;
             }
         }
