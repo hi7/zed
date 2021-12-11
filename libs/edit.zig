@@ -332,6 +332,8 @@ fn backspace(allocator: Allocator) void {
             term.writeByte(text[i]);
         }
         term.writeByte(' ');
+        term.clearScreen();
+        writeScreen(allocator);
     }
 }
 test "toXY" {
