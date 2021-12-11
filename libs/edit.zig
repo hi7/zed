@@ -551,5 +551,4 @@ fn writeKeyCodes(sequence: [4]u8, len: usize, pos: Position, allocator: Allocato
     if(len == 3) print("{x} {x} {x}", .{sequence[0], sequence[1], sequence[2]});
     if(len == 4) print("{x} {x} {x} {x}", .{sequence[0], sequence[1], sequence[2], sequence[3]});
     term.resetMode();
-} term.resetMode();
-}}
+}
