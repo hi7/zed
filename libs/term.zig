@@ -155,8 +155,8 @@ pub fn setMode(mode: Mode, allocator: Allocator) void {
 pub fn resetMode() []const u8 {
     return "\x1b[0m";
 }
-pub fn resetWrapMode() void {
-    write("\x1b[?7l");
+pub fn resetWrapMode() []const u8 {
+    return ("\x1b[?7l");
 }
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
