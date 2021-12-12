@@ -18,7 +18,7 @@ var height: u16 = 25;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
 var text: []u8 = "";
-var textbuffer: []u8 = undefined;
+var screen: []u8 = undefined;
 var length: usize = undefined;
 var modified = false;
 const keyCodeOffset = 21;
@@ -69,7 +69,8 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     defer allocator.free(text);
 
     term.updateWindowSize();
-    textbuffer = allocator.alloc(u8, width * height * 4) catch @panic(OOM); // four times security
+    // four times the space for long utf codes and ESC-Seq.
+    screen = allocator.alloc(u8, width * height * 4) catch @panic(OOM);
     term.rawMode(5);
 
     var key: term.KeyCode = undefined;
@@ -82,7 +83,8 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
         showStatus(allocator);
     }
 
-    allocator.free(textbuffer);
+    allocator.free(screen
+);
     term.resetMode();
     term.cookedMode();
     term.clearScreen();
