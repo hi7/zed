@@ -116,7 +116,7 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
     } else if (key.len == 3) {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) cursorUp(allocator);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) cursorDown(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight(allocator);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) cursorLeft();
     }
 }
@@ -299,10 +299,14 @@ fn cursorLeft() void {
         last_x = toXY(text, cursor_index).x;
     }
 }
-fn cursorRight() void {
+fn cursorRight(allocator: Allocator) void {
     if (cursor_index < length) {
         cursor_index += 1;
-        last_x = toXY(text, cursor_index).x;
+        const pos = positionOnScreen(toXY(text, cursor_index));
+        last_x = pos.x;
+        if (pos.y == height - 1) {
+            _ = up(text, cursor_index, false, allocator);
+        }
     }
 }
 fn newLine(allocator: Allocator) void {
@@ -310,7 +314,7 @@ fn newLine(allocator: Allocator) void {
     if (cursor_index < length) shiftRight();
     text[cursor_index] = '\n';
     length += 1;
-    cursorRight();
+    cursorRight(allocator);
     term.clearScreen();
     writeScreen(allocator);
 }
@@ -323,7 +327,7 @@ fn writeChar(char: u8, allocator: Allocator) void {
     term.setCursor(positionOnScreen(toXY(text, cursor_index)), allocator);
     term.writeByte(char);
     length += 1;
-    cursorRight();
+    cursorRight(allocator);
     term.clearScreen();
     writeScreen(allocator);
 }
@@ -490,7 +494,7 @@ test "cursorUp" {
     try expect(toXY(text, cursor_index).x == 0);
     allocator.free(text);
 }
-fn up(a_text: []const u8, start_index: usize) usize {
+fn down(a_text: []const u8, start_index: usize) usize {
     var index: usize = undefined;
     if (isEmptyLine(a_text, start_index - 1)) {
         index = previousBreak(a_text, start_index - 1, 1);
@@ -506,29 +510,34 @@ fn toLastX(a_text: []const u8, index: usize) usize {
 fn cursorUp(allocator: Allocator) void {
     if (cursor_index > 0) {
         if (positionOnScreen(toXY(text, cursor_index)).y == 1 and pageOffset > 0) {
-            pageOffset = up(text, pageOffset);
-            cursor_index = up(text, cursor_index);
+            pageOffset = down(text, pageOffset);
+            cursor_index = down(text, cursor_index);
             cursor_index = toLastX(text, cursor_index);
             offset_y += 1;
             term.clearScreen();
             writeScreen(allocator);
             return;
         }
-        const index = up(text, cursor_index);
+        const index = down(text, cursor_index);
         if(index < cursor_index) {
             cursor_index = toLastX(text, index);
         }
     }
 }
+fn up(a_text: []const u8, index: usize, update_cursor: bool, allocator: Allocator) void {
+    pageOffset = nextBreak(a_text, pageOffset, 1);
+    if (update_cursor) {
+        cursor_index = nextBreak(a_text, index, 1);
+        cursor_index = toLastX(a_text, cursor_index);
+    }
+    offset_y -= 1;
+    term.clearScreen();
+    writeScreen(allocator);
+}
 fn cursorDown(allocator: Allocator) void {
     if(cursor_index < length) {
         if (positionOnScreen(toXY(text, cursor_index)).y == height - 2) {
-            pageOffset = nextBreak(text, pageOffset, 1);
-            cursor_index = nextBreak(text, cursor_index, 1);
-            cursor_index = toLastX(text, cursor_index);
-            offset_y -= 1;
-            term.clearScreen();
-            writeScreen(allocator);
+            up(text, cursor_index, true, allocator);
         } else {
             const index = nextBreak(text, cursor_index, 1);
             if (index == length and length > 0 and text[length - 1] == '\n') {
