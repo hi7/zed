@@ -152,8 +152,8 @@ const modes = 'm';
 pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
 }
-pub fn resetMode() void {
-    write("\x1b[0m");
+pub fn resetMode() []const u8 {
+    return "\x1b[0m";
 }
 pub fn resetWrapMode() void {
     write("\x1b[?7l");
