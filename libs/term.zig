@@ -163,6 +163,13 @@ pub const Color = enum(u8) { black = '0', red = '1', green = '2', yellow = '3', 
     magenta = '5', cyan = '6', white = '7' };
 pub const Scope = enum(u8) { foreground = '3', background = '4', light_foreground = '9' };
 const modes = 'm';
+pub fn bufMode(mode: Mode, buf: []u8, index: usize) usize {
+    buf[index] = '\x1b';
+    buf[index + 1] = '[';
+    buf[index + 2] = mode;
+    buf[index + 3] = 'm';
+    return index + 3;
+}
 pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
 }
