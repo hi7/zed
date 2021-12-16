@@ -12,6 +12,8 @@ const Allocator = *std.mem.Allocator;
 
 pub const ESC: u8 = '\x1B';
 pub const SEQ: u8 = '[';
+pub const CLEAR_SCREEN = "\x1b[2J";
+pub const CURSOR_HOME = "\x1b[H";
 
 // Errors
 const OOM = "OutOfMemory";
@@ -23,12 +25,6 @@ pub fn writeByte(byte: u8) void {
     _ = io.getStdOut().writer().writeByte(byte) catch @panic("StdOut write failed!");
 }
 
-pub fn clearScreen() void {
-    write("\x1b[2J");
-}
-pub fn cursorHome() void {
-    write("\x1b[H");
-}
 pub fn setCursor(pos: Position, allocator: Allocator) void {
     const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ pos.y + 1, pos.x + 1}) catch @panic(OOM);
     defer allocator.free(out);

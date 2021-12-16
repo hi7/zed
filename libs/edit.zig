@@ -87,8 +87,8 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     allocator.free(screen);
     term.write(term.resetMode());
     term.cookedMode();
-    term.clearScreen();
-    term.cursorHome();
+    term.write(term.CLEAR_SCREEN);
+    term.write(term.CURSOR_HOME);
 }
 
 inline fn multipleOf(mul: usize, len: usize) usize {
@@ -170,9 +170,9 @@ fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     term.write(name);
 }
 inline fn menuBar(allocator: Allocator) void {
-    term.clearScreen();
+    term.write(term.CLEAR_SCREEN);
     setMenuBarMode(allocator);
-    term.cursorHome();
+    term.write(term.CURSOR_HOME);
     repearChar(' ', width);
 
     term.setCursor(Position{ .x = width - 26, .y = 0}, allocator);
@@ -315,7 +315,7 @@ fn newLine(allocator: Allocator) void {
     text[cursor_index] = '\n';
     length += 1;
     cursorRight(allocator);
-    term.clearScreen();
+    term.write(term.CLEAR_SCREEN);
     writeScreen(allocator);
 }
 fn writeChar(char: u8, allocator: Allocator) void {
@@ -328,7 +328,7 @@ fn writeChar(char: u8, allocator: Allocator) void {
     term.writeByte(char);
     length += 1;
     cursorRight(allocator);
-    term.clearScreen();
+    term.write(term.CLEAR_SCREEN);
     writeScreen(allocator);
 }
 fn backspace(allocator: Allocator) void {
@@ -342,7 +342,7 @@ fn backspace(allocator: Allocator) void {
             term.writeByte(text[i]);
         }
         term.writeByte(' ');
-        term.clearScreen();
+        term.write(term.CLEAR_SCREEN);
         writeScreen(allocator);
     }
 }
@@ -514,7 +514,7 @@ fn cursorUp(allocator: Allocator) void {
             cursor_index = down(text, cursor_index);
             cursor_index = toLastX(text, cursor_index);
             offset_y += 1;
-            term.clearScreen();
+            term.write(term.CLEAR_SCREEN);
             writeScreen(allocator);
             return;
         }
@@ -531,7 +531,7 @@ fn up(a_text: []const u8, index: usize, update_cursor: bool, allocator: Allocato
         cursor_index = toLastX(a_text, cursor_index);
     }
     offset_y -= 1;
-    term.clearScreen();
+    term.write(term.CLEAR_SCREEN);
     writeScreen(allocator);
 }
 fn cursorDown(allocator: Allocator) void {
