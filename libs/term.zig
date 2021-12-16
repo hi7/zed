@@ -162,16 +162,33 @@ pub const Mode = enum(u8) { reset = '0', bright = '1', dim = '2', underscore = '
 pub const Color = enum(u8) { black = '0', red = '1', green = '2', yellow = '3', blue = '4', 
     magenta = '5', cyan = '6', white = '7' };
 pub const Scope = enum(u8) { foreground = '3', background = '4', light_foreground = '9' };
-const modes = 'm';
+const MODES = 'm';
 pub fn bufMode(mode: Mode, buf: []u8, index: usize) usize {
-    buf[index] = '\x1b';
-    buf[index + 1] = '[';
+    buf[index] = ESC;
+    buf[index + 1] = SEQ;
     buf[index + 2] = mode;
-    buf[index + 3] = 'm';
+    buf[index + 3] = MODES;
     return index + 3;
 }
 pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
+}
+pub fn bufAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, buf: []u8, index: usize) usize {
+    var i = index;
+    buf[i] = ESC; i+=1;
+    buf[i] = SEQ; i+=1;
+    if(mode != null) {
+        buf[i] = mode.?; i+=1;
+        if(scope != null and color != null) {
+            buf[i] = ';'; i+=1;
+        }
+    }
+    if(scope != null and color != null) {
+        buf[i] = scope.?; i+=1;
+        buf[i] = color.?; i+=1;
+    }
+    buf[i] = MODES; i+=1;
+    return i;
 }
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
@@ -186,8 +203,17 @@ pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Al
         out.append(@enumToInt(scope.?)) catch @panic(OOM);
         out.append(@enumToInt(color.?)) catch @panic(OOM);
     }
-    out.append(modes) catch @panic(OOM);
+    out.append(MODES) catch @panic(OOM);
     write(out.items);
+}
+pub fn bufAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: Allocator) void {
+    var i = bufAttributeMode(mode, scopeA, colorA, index);
+    if(scopeB != null and colorB != null) {
+        buf[i] = scopeB.?; i+=1;
+        buf[i] = colorB.?; i+=1;
+    }
+    buf[i] = MODES; i+=1;
+    return i;
 }
 pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
@@ -208,6 +234,6 @@ pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?S
         out.append(@enumToInt(scopeB.?)) catch @panic(OOM);
         out.append(@enumToInt(colorB.?)) catch @panic(OOM);
     }
-    out.append(modes) catch @panic(OOM);
+    out.append(MODES) catch @panic(OOM);
     write(out.items);
 }
