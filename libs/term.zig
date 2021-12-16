@@ -14,6 +14,8 @@ pub const ESC: u8 = '\x1B';
 pub const SEQ: u8 = '[';
 pub const CLEAR_SCREEN = "\x1b[2J";
 pub const CURSOR_HOME = "\x1b[H";
+pub const RESET_MODE = "\x1b[0m";
+pub const RESET_WRAP_MODE = "\x1b[?7l";
 
 // Errors
 const OOM = "OutOfMemory";
@@ -163,12 +165,6 @@ pub const Scope = enum(u8) { foreground = '3', background = '4', light_foregroun
 const modes = 'm';
 pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
-}
-pub fn resetMode() []const u8 {
-    return "\x1b[0m";
-}
-pub fn resetWrapMode() []const u8 {
-    return ("\x1b[?7l");
 }
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);

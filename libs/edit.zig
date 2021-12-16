@@ -85,7 +85,7 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     }
 
     allocator.free(screen);
-    term.write(term.resetMode());
+    term.write(term.RESET_MODE);
     term.cookedMode();
     term.write(term.CLEAR_SCREEN);
     term.write(term.CURSOR_HOME);
@@ -139,14 +139,14 @@ pub fn updateSize(allocator: Allocator) void {
 
 var themeColor = Color.red;
 fn setMenuBarMode(allocator: Allocator) void {
-    term.write(term.resetMode());
+    term.write(term.RESET_MODE);
     term.setAttributeMode(Mode.underscore, Scope.foreground, themeColor, allocator);
 }
 fn setMenuBarHighlightMode(allocator: Allocator) void {
     term.setAttributeMode(Mode.reset, Scope.light_foreground, themeColor, allocator);
 }
 fn setStatusBarMode(allocator: Allocator) void {
-    term.write(term.resetMode());
+    term.write(term.RESET_MODE);
     term.setAttributeMode(Mode.reverse, Scope.foreground, themeColor, allocator);
 }
 fn repearChar(char: u8, count: u16) void {
@@ -256,7 +256,7 @@ inline fn endOfPageIndex(offset: usize) usize {
 }
 var pageOffset: usize = 0;
 inline fn showtext(allocator: Allocator) void {
-    term.write(term.resetMode());
+    term.write(term.RESET_MODE);
     term.setCursor(Position{ .x = 0, .y = 1}, allocator);
     var i = endOfPageIndex(pageOffset);
     term.write(text[pageOffset..i]);
@@ -562,5 +562,5 @@ fn writeKeyCodes(sequence: [4]u8, len: usize, pos: Position, allocator: Allocato
     if(len == 2) print("{x} {x}", .{sequence[0], sequence[1]});
     if(len == 3) print("{x} {x} {x}", .{sequence[0], sequence[1], sequence[2]});
     if(len == 4) print("{x} {x} {x} {x}", .{sequence[0], sequence[1], sequence[2], sequence[3]});
-    term.write(term.resetMode());
+    term.write(term.RESET_MODE);
 }
