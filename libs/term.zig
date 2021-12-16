@@ -116,7 +116,23 @@ pub fn nonBlock() void {
     _ = os.fcntl(os.STDIN_FILENO, os.F.SETFL, fl | os.O.NONBLOCK) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("fcntl(STDIN_FILENO, SETFL, fl | NONBLOCK) failed!");
-    };    
+    };
+}
+
+test "bufOptional" {
+    var buf = [_]u8{' '};
+    try expect(bufOptional(null, &buf, 0) == 0);
+
+    const index = bufOptional(007, &buf, 0);
+    try expect(index == 1);
+    try expect(equals("7", &buf));
+}
+
+/// writes the string version of given number, if number is null writes nothing.
+inline fn bufOptional(number: ?u8, buf: []u8, index: usize) usize {
+    if (number == null) return index;
+    const result = std.fmt.bufPrint(buf[index..], "{d}", .{ number.? }) catch @panic(OOM);
+    return index + result.len;
 }
 
 /// return the string version of given number, if number is null: "" is returned.
