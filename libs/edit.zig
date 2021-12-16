@@ -133,23 +133,34 @@ pub fn updateSize(allocator: Allocator) void {
         update = true;
     }
     if(update) {
-        writeScreen(allocator);
+        bufScreen(screen);
     }
 }
 
 var themeColor = Color.red;
+fn bufMenuBarMode(buf: []u8, index: usize) usize {
+    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
+    return term.bufAttributeMode(Mode.underscore, Scope.foreground, themeColor, buf, i);
+}
 fn setMenuBarMode(allocator: Allocator) void {
     term.write(term.RESET_MODE);
     term.setAttributeMode(Mode.underscore, Scope.foreground, themeColor, allocator);
 }
+fn bufMenuBarHighlightMode(buf: []u8, index: usize) usize {
+    return term.bufAttributeMode(Mode.reset, Scope.light_foreground, themeColor, buf, index);
+}
 fn setMenuBarHighlightMode(allocator: Allocator) void {
     term.setAttributeMode(Mode.reset, Scope.light_foreground, themeColor, allocator);
+}
+fn bufStatusBarMode(buf: []u8, index: usize) usize {
+    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
+    return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, buf, i);
 }
 fn setStatusBarMode(allocator: Allocator) void {
     term.write(term.RESET_MODE);
     term.setAttributeMode(Mode.reverse, Scope.foreground, themeColor, allocator);
 }
-fn repearChar(char: u8, count: u16) void {
+fn repeatChar(char: u8, count: u16) void {
     var i: u8 = 0;
     while(i<count) : (i += 1) {
         term.writeByte(char);
@@ -163,17 +174,33 @@ fn showMessage(message: []const u8, allocator: Allocator) void {
     term.resetMode();
 }
 
+fn bufShortCut(key: u8, name: []const u8, buf: []u8, index: usize) usize {
+    var i = bufMenuBarHighlightMode(buf, index);
+    i = term.bufWriteByte(key, buf, i);
+    i = bufMenuBarMode(buf, i);
+    return term.bufWrite(name, buf, i, width);
+}
 fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     setMenuBarHighlightMode(allocator);
     term.writeByte(key);
     setMenuBarMode(allocator);
     term.write(name);
 }
+inline fn bufMenuBar(buf: []u8, index: usize) usize {
+    var i = term.bufWrite(term.CLEAR_SCREEN, buf, index, width);
+    i = bufMenuBarMode(buf, i);
+    i = term.bufWrite(term.CURSOR_HOME, buf, i, width);
+    i = term.bufWriteRepeat(' ', width - 25, buf, i);
+
+    i = bufShortCut('S', "ave: Ctrl-s ", buf, i);
+    i = bufShortCut('Q', "uit: Ctrl-q", buf, i);
+    return i;
+}
 inline fn menuBar(allocator: Allocator) void {
     term.write(term.CLEAR_SCREEN);
     setMenuBarMode(allocator);
     term.write(term.CURSOR_HOME);
-    repearChar(' ', width);
+    repeatChar(' ', width);
 
     term.setCursor(Position{ .x = width - 26, .y = 0}, allocator);
     shortCut('S', "ave: Ctrl-s", allocator);
@@ -191,6 +218,9 @@ inline fn positionOnScreen(pos: Position) Position {
         .y = @intCast(usize, @intCast(isize, pos.y) + offset_y),
     };
 }
+fn bufTextCursor(pos: Position, buf: []u8, index: usize) usize {
+    return term.bufCursor(positionOnScreen(pos), buf, index);
+}
 fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
 }
@@ -200,6 +230,14 @@ inline fn mod(changed: bool) []const u8 {
 }
 
 pub var message: []const u8 = "READY.";
+pub fn bufStatus(buf: []u8, index: usize) usize {
+    var i = bufStatusBarMode(buf, index);
+    i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
+    const pos = toXY(text, cursor_index);
+    const stats = std.fmt.bufPrint(buf[i..], "L{d}:C{d} {s}{s} {s}   ", 
+        .{pos.y + 1, pos.x + 1, filename, mod(modified), message}) catch @panic(OOM);
+    return bufTextCursor(toXY(text, cursor_index), buf, i + stats.len);
+}
 pub fn showStatus(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
@@ -208,11 +246,26 @@ pub fn showStatus(allocator: Allocator) void {
     .{pos.y + 1, pos.x + 1, filename, mod(modified), message});
     setTextCursor(toXY(text, cursor_index), allocator);
 }
+inline fn bufStatusBar(buf: []u8, index: usize) usize {
+    var i = bufStatusBarMode(buf, index);
+    i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
+    const offset = width - keyCodeOffset;
+    i = term.bufWriteRepeat(' ', offset, buf, i);
+
+    i = bufStatus(buf, i);
+
+    i = term.bufCursor(Position{ .x = offset, .y = height - 1}, buf, i);
+    i = term.bufWrite("key code:            ", buf, i, width);
+
+    i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
+    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(modified), buf, i);
+    return term.bufWrite(filename, buf, i, width);
+}
 inline fn statusBar(allocator: Allocator) void {
     setStatusBarMode(allocator);
     term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
     const offset = width - keyCodeOffset;
-    repearChar(' ', offset);
+    repeatChar(' ', offset);
 
     showStatus(allocator);
 
@@ -255,13 +308,25 @@ inline fn endOfPageIndex(offset: usize) usize {
     return nextBreak(text, offset, @as(usize, height - 2));
 }
 var pageOffset: usize = 0;
+inline fn bufText(buf: []u8, index: usize) usize {
+    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
+    i = term.bufCursor(Position{ .x = 0, .y = 1}, buf, i);
+    const eop = endOfPageIndex(pageOffset);
+    i = term.bufWrite(text[pageOffset..eop], buf, i, width);
+    return bufTextCursor(toXY(text, cursor_index), buf, i);
+}
 inline fn showtext(allocator: Allocator) void {
     term.write(term.RESET_MODE);
     term.setCursor(Position{ .x = 0, .y = 1}, allocator);
     var i = endOfPageIndex(pageOffset);
     term.write(text[pageOffset..i]);
-    var x = toXY(text, i).x;
     setTextCursor(toXY(text, cursor_index), allocator);
+}
+fn bufScreen(buf: []u8) void {
+    var i = bufMenuBar(buf, 0);
+    i = bufText(buf, i);
+    i = bufStatusBar(buf, i);
+    term.write(buf[0..i]);
 }
 fn writeScreen(allocator: Allocator) void {
     menuBar(allocator);

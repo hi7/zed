@@ -19,7 +19,36 @@ pub const RESET_WRAP_MODE = "\x1b[?7l";
 
 // Errors
 const OOM = "OutOfMemory";
+const BO = "BufferOverflow";
 
+pub fn bufWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
+    var di: usize = 0;
+    var bi: usize = index;
+    var len: usize = 0;
+    while(di < data.len) : (di+=1) {
+        // fix text overflow behavior
+        if (len < max_width or data[di] == '\n') {
+            buf[bi] = data[di];
+            bi += 1;
+        }
+        len += 1;
+        if (data[di] == '\n') {
+            len = 0;
+        }
+    }
+    return bi;
+}
+pub fn bufWriteByte(byte: u8, buf: []u8, index: usize) usize {
+    buf[index] = byte;
+    return index + 1;
+}
+pub fn bufWriteRepeat(char: u8, count: usize, buf: []u8, index: usize) usize {
+    var i: usize = 0;
+    while(i < count) : (i+=1) {
+        buf[index + i] = char;
+    }
+    return index + i;
+}
 pub fn write(data: []const u8) void {
     _ = io.getStdOut().writer().write(data) catch @panic("StdOut write(data) failed!");
 }
@@ -27,6 +56,10 @@ pub fn writeByte(byte: u8) void {
     _ = io.getStdOut().writer().writeByte(byte) catch @panic("StdOut write failed!");
 }
 
+pub fn bufCursor(pos: Position, buf: []u8, index: usize) usize {
+    const written = std.fmt.bufPrint(buf[index..], "\x1b[{d};{d}H", .{ pos.y + 1, pos.x + 1}) catch @panic(BO);
+    return index + written.len;
+}
 pub fn setCursor(pos: Position, allocator: Allocator) void {
     const out = std.fmt.allocPrint(allocator, "\x1b[{d};{d}H", .{ pos.y + 1, pos.x + 1}) catch @panic(OOM);
     defer allocator.free(out);
@@ -178,14 +211,14 @@ pub fn bufAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, buf: []u8, in
     buf[i] = ESC; i+=1;
     buf[i] = SEQ; i+=1;
     if(mode != null) {
-        buf[i] = mode.?; i+=1;
+        buf[i] = @enumToInt(mode.?); i+=1;
         if(scope != null and color != null) {
             buf[i] = ';'; i+=1;
         }
     }
     if(scope != null and color != null) {
-        buf[i] = scope.?; i+=1;
-        buf[i] = color.?; i+=1;
+        buf[i] = @enumToInt(scope.?); i+=1;
+        buf[i] = @enumToInt(color.?); i+=1;
     }
     buf[i] = MODES; i+=1;
     return i;
@@ -206,11 +239,11 @@ pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Al
     out.append(MODES) catch @panic(OOM);
     write(out.items);
 }
-pub fn bufAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, allocator: Allocator) void {
-    var i = bufAttributeMode(mode, scopeA, colorA, index);
+pub fn bufAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, buf: []u8, index: usize) usize {
+    var i = bufAttributeMode(mode, scopeA, colorA, buf, index);
     if(scopeB != null and colorB != null) {
-        buf[i] = scopeB.?; i+=1;
-        buf[i] = colorB.?; i+=1;
+        buf[i] = @enumToInt(scopeB.?); i+=1;
+        buf[i] = @enumToInt(colorB.?); i+=1;
     }
     buf[i] = MODES; i+=1;
     return i;
@@ -236,4 +269,4 @@ pub fn setAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?S
     }
     out.append(MODES) catch @panic(OOM);
     write(out.items);
-}
+} 
