@@ -122,12 +122,12 @@ pub fn nonBlock() void {
 }
 
 test "bufOptional" {
-    var buf = [_]u8{' '};
+    var buf = [_]u8{' ', ' '};
     try expect(bufOptional(null, &buf, 0) == 0);
 
-    const index = bufOptional(007, &buf, 0);
-    try expect(index == 1);
-    try expect(equals("7", &buf));
+    const index = bufOptional(090, &buf, 0);
+    try expect(index == 2);
+    try expect(equals("90", &buf));
 }
 
 /// writes the string version of given number, if number is null writes nothing.
