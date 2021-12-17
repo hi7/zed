@@ -27,7 +27,7 @@ pub fn bufWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usi
     var len: usize = 0;
     while(di < data.len) : (di+=1) {
         // fix text overflow behavior
-        if (len < max_width - 1) {
+        if (len < max_width) {
             buf[bi] = data[di];
             bi += 1;
         }
