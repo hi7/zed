@@ -126,10 +126,12 @@ pub fn updateSize(allocator: Allocator) void {
     var update = false;
     if(term.config.width != width) {
         width = term.config.width;
+        assert(width > 0);
         update = true;
     }
     if(term.config.height != height) {
         height = term.config.height;
+        assert(height > 0);
         update = true;
     }
     if(update) {
