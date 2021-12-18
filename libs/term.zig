@@ -21,19 +21,28 @@ pub const RESET_WRAP_MODE = "\x1b[?7l";
 const OOM = "OutOfMemory";
 const BO = "BufferOverflow";
 
-pub fn bufWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
+pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
     var di: usize = 0;
     var bi: usize = index;
-    var len: usize = 0;
-    while(di < data.len) : (di+=1) {
-        // fix text overflow behavior
-        if (len < max_width) {
-            buf[bi] = data[di];
+    var x: usize = 0;
+    var clear = false;
+    while(di < data.len) {
+        if (x < max_width) {
+            if (data[di] == '\n') clear = true;
+            if (clear) {
+                buf[bi] = ' ';
+            } else {
+                buf[bi] = data[di];
+                di+=1;
+            }
             bi += 1;
-        }
-        len += 1;
-        if (data[di] == '\n') {
-            len = 0;
+            x += 1;
+        } else {
+            if(clear or data[di] == '\n') {
+                clear = false;
+                x = 0;
+            }
+            di+=1;
         }
     }
     return bi;
@@ -223,6 +232,17 @@ pub fn bufAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, buf: []u8, in
     buf[i] = MODES; i+=1;
     return i;
 }
+pub fn bufAttribute(scope: ?Scope, color: ?Color, buf: []u8, index: usize) usize {
+    var i = index;
+    buf[i] = ESC; i+=1;
+    buf[i] = SEQ; i+=1;
+    if(scope != null and color != null) {
+        buf[i] = @enumToInt(scope.?); i+=1;
+        buf[i] = @enumToInt(color.?); i+=1;
+    }
+    buf[i] = MODES; i+=1;
+    return i;
+}
 pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Allocator) void {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
@@ -239,8 +259,20 @@ pub fn setAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, allocator: Al
     out.append(MODES) catch @panic(OOM);
     write(out.items);
 }
+pub fn bufAttributes(scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, buf: []u8, index: usize) usize {
+    var i = bufAttribute(scopeA, colorA, buf, index) - 1; // skip mode here
+    if(scopeB != null and colorB != null) {
+        if(scopeA != null and colorA != null) {
+            buf[i] = ';'; i+=1;
+        }
+        buf[i] = @enumToInt(scopeB.?); i+=1;
+        buf[i] = @enumToInt(colorB.?); i+=1;
+    }
+    buf[i] = MODES; i+=1;
+    return i;
+}
 pub fn bufAttributesMode(mode: ?Mode, scopeA: ?Scope, colorA: ?Color, scopeB: ?Scope, colorB: ?Color, buf: []u8, index: usize) usize {
-    var i = bufAttributeMode(mode, scopeA, colorA, buf, index);
+    var i = bufAttributeMode(mode, scopeA, colorA, buf, index) - 1; // skip mode here
     if(scopeB != null and colorB != null) {
         buf[i] = @enumToInt(scopeB.?); i+=1;
         buf[i] = @enumToInt(colorB.?); i+=1;

@@ -63,6 +63,9 @@ pub fn saveFile() !void {
         const stat = try file.stat();
         assert(stat.size == length);
         modified = false;
+        var size = bufStatusBar(screen, 0);
+        size = bufCursor(screen, size);
+        term.write(screen[0..size]);
     }
 }
 pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
@@ -70,8 +73,9 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     defer allocator.free(text);
 
     term.updateWindowSize();
-    // four times the space for long utf codes and ESC-Seq.
+    // multiple times the space for long utf codes and ESC-Seq.
     screen = allocator.alloc(u8, width * height * 4) catch @panic(OOM);
+    defer allocator.free(screen);
     term.rawMode(5);
 
     var key: term.KeyCode = undefined;
@@ -80,11 +84,9 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
         if(key.len > 0) {
             processKey(key, allocator);
         }
-        updateSize(allocator);
-        showStatus(allocator);
+        updateSize(screen, key);
     }
 
-    allocator.free(screen);
     term.write(term.RESET_MODE);
     term.cookedMode();
     term.write(term.CLEAR_SCREEN);
@@ -96,32 +98,28 @@ inline fn multipleOf(mul: usize, len: usize) usize {
 }
 
 pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
-    writeKeyCodes(key.code, key.len, Position{
-        .x = term.config.width - keyCodeOffset + 10, 
-        .y = term.config.height}, 
-        allocator);
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
-            newLine(allocator);
+            newLine(allocator, screen, key);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            writeChar(c, allocator);
+            writeChar(c, allocator, screen, key);
         }
         if (c == term.ctrlKey('s')) {
             saveFile() catch |err| {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
             };
         }
-        if (c == @enumToInt(ControlKey.backspace)) backspace(allocator);
+        if (c == @enumToInt(ControlKey.backspace)) backspace(screen, key);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) cursorUp(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) cursorDown(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight(allocator);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) cursorLeft();
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) cursorUp(screen, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) cursorDown(screen, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight(screen, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) cursorLeft(screen, key);
     }
 }
 
-pub fn updateSize(allocator: Allocator) void {
+pub fn updateSize(buf: []u8, key: term.KeyCode) void {
     term.updateWindowSize();
     var update = false;
     if(term.config.width != width) {
@@ -135,32 +133,23 @@ pub fn updateSize(allocator: Allocator) void {
         update = true;
     }
     if(update) {
-        bufScreen(screen);
+        bufScreen(buf, key);
     }
 }
 
 var themeColor = Color.red;
+var themeHighlight = Color.white;
 fn bufMenuBarMode(buf: []u8, index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
-    return term.bufAttributeMode(Mode.underscore, Scope.foreground, themeColor, buf, i);
-}
-fn setMenuBarMode(allocator: Allocator) void {
-    term.write(term.RESET_MODE);
-    term.setAttributeMode(Mode.underscore, Scope.foreground, themeColor, allocator);
-}
-fn bufMenuBarHighlightMode(buf: []u8, index: usize) usize {
-    return term.bufAttributeMode(Mode.reset, Scope.light_foreground, themeColor, buf, index);
-}
-fn setMenuBarHighlightMode(allocator: Allocator) void {
-    term.setAttributeMode(Mode.reset, Scope.light_foreground, themeColor, allocator);
-}
-fn bufStatusBarMode(buf: []u8, index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
+    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
     return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, buf, i);
 }
-fn setStatusBarMode(allocator: Allocator) void {
-    term.write(term.RESET_MODE);
-    term.setAttributeMode(Mode.reverse, Scope.foreground, themeColor, allocator);
+fn bufMenuBarHighlightMode(buf: []u8, index: usize) usize {
+    // return term.bufAttributes(Scope.light_foreground, themeColor, Scope.background, themeHighlight, buf, index);
+    return term.bufAttribute(Scope.background, themeHighlight, buf, index);
+}
+fn bufStatusBarMode(buf: []u8, index: usize) usize {
+    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
+    return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, buf, i);
 }
 fn repeatChar(char: u8, count: u16) void {
     var i: u8 = 0;
@@ -180,7 +169,7 @@ fn bufShortCut(key: u8, name: []const u8, buf: []u8, index: usize) usize {
     var i = bufMenuBarHighlightMode(buf, index);
     i = term.bufWriteByte(key, buf, i);
     i = bufMenuBarMode(buf, i);
-    return term.bufWrite(name, buf, i, width);
+    return term.bufClipWrite(name, buf, i, width);
 }
 fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     setMenuBarHighlightMode(allocator);
@@ -189,9 +178,9 @@ fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     term.write(name);
 }
 inline fn bufMenuBar(buf: []u8, index: usize) usize {
-    var i = term.bufWrite(term.CLEAR_SCREEN, buf, index, width);
+    var i = term.bufClipWrite(term.CLEAR_SCREEN, buf, index, width);
     i = bufMenuBarMode(buf, i);
-    i = term.bufWrite(term.CURSOR_HOME, buf, i, width);
+    i = term.bufClipWrite(term.CURSOR_HOME, buf, i, width);
     i = term.bufWriteRepeat(' ', width - 25, buf, i);
 
     i = bufShortCut('S', "ave: Ctrl-s ", buf, i);
@@ -221,7 +210,14 @@ inline fn positionOnScreen(pos: Position) Position {
     };
 }
 fn bufTextCursor(pos: Position, buf: []u8, index: usize) usize {
-    return term.bufCursor(positionOnScreen(pos), buf, index);
+    var screen_pos = positionOnScreen(pos);
+    if (screen_pos.x >= width) {
+        screen_pos.x = width - 1;
+    }
+    return term.bufCursor(screen_pos, buf, index);
+}
+fn bufCursor(buf: []u8, index: usize) usize {
+    return bufTextCursor(toXY(text, cursor_index), buf, index);
 }
 fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
@@ -232,51 +228,18 @@ inline fn mod(changed: bool) []const u8 {
 }
 
 pub var message: []const u8 = "READY.";
-pub fn bufStatus(buf: []u8, index: usize) usize {
-    var i = bufStatusBarMode(buf, index);
-    i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
-    const pos = toXY(text, cursor_index);
-    const stats = std.fmt.bufPrint(buf[i..], "L{d}:C{d} {s}{s} {s}   ", 
-        .{pos.y + 1, pos.x + 1, filename, mod(modified), message}) catch @panic(OOM);
-    return bufTextCursor(toXY(text, cursor_index), buf, i + stats.len);
-}
-pub fn showStatus(allocator: Allocator) void {
-    setStatusBarMode(allocator);
-    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
-    const pos = toXY(text, cursor_index);
-    print("L{d}:C{d} {s}{s} {s}   ", 
-    .{pos.y + 1, pos.x + 1, filename, mod(modified), message});
-    setTextCursor(toXY(text, cursor_index), allocator);
-}
 inline fn bufStatusBar(buf: []u8, index: usize) usize {
     var i = bufStatusBarMode(buf, index);
     i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
+    const pos = toXY(text, cursor_index);
+    const stats = std.fmt.bufPrint(buf[i..], "L{d}:C{d} {s}{s} {s}", 
+        .{pos.y + 1, pos.x + 1, filename, mod(modified), message}) catch @panic(OOM);
+    i += stats.len;
     const offset = width - keyCodeOffset;
-    i = term.bufWriteRepeat(' ', offset, buf, i);
-
-    i = bufStatus(buf, i);
+    i = term.bufWriteRepeat(' ', offset - stats.len, buf, i);
 
     i = term.bufCursor(Position{ .x = offset, .y = height - 1}, buf, i);
-    i = term.bufWrite("key code:            ", buf, i, width);
-
-    i = term.bufCursor(Position{ .x = 0, .y = height - 1}, buf, i);
-    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(modified), buf, i);
-    return term.bufWrite(filename, buf, i, width);
-}
-inline fn statusBar(allocator: Allocator) void {
-    setStatusBarMode(allocator);
-    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
-    const offset = width - keyCodeOffset;
-    repeatChar(' ', offset);
-
-    showStatus(allocator);
-
-    term.setCursor(Position{ .x = offset, .y = height - 1}, allocator);
-    term.write("key code:            ");
-
-    term.setCursor(Position{ .x = 0, .y = height - 1}, allocator);
-    term.setAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, fileColor(false), allocator);
-    term.write(filename);
+    return term.bufClipWrite("key code:            ", buf, i, width);
 }
 test "previousBreak" {
     try expect(previousBreak("", 0, 2) == 0);
@@ -311,11 +274,10 @@ inline fn endOfPageIndex(offset: usize) usize {
 }
 var pageOffset: usize = 0;
 inline fn bufText(buf: []u8, index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, buf, index, width);
+    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
     i = term.bufCursor(Position{ .x = 0, .y = 1}, buf, i);
     const eop = endOfPageIndex(pageOffset);
-    i = term.bufWrite(text[pageOffset..eop], buf, i, width);
-    return bufTextCursor(toXY(text, cursor_index), buf, i);
+    return term.bufClipWrite(text[pageOffset..eop], buf, i, width);
 }
 inline fn showtext(allocator: Allocator) void {
     term.write(term.RESET_MODE);
@@ -324,16 +286,16 @@ inline fn showtext(allocator: Allocator) void {
     term.write(text[pageOffset..i]);
     setTextCursor(toXY(text, cursor_index), allocator);
 }
-fn bufScreen(buf: []u8) void {
+fn bufScreen(buf: []u8, key: term.KeyCode) void {
     var i = bufMenuBar(buf, 0);
     i = bufText(buf, i);
     i = bufStatusBar(buf, i);
+    i = bufKeyCodes(key, Position{
+        .x = width - keyCodeOffset + 10, 
+        .y = term.config.height - 1}, 
+        buf, i);
+    i = bufTextCursor(toXY(text, cursor_index), buf, i);
     term.write(buf[0..i]);
-}
-fn writeScreen(allocator: Allocator) void {
-    menuBar(allocator);
-    statusBar(allocator);
-    showtext(allocator);
 }
 
 fn shiftLeft() void {
@@ -360,57 +322,49 @@ fn extendBuffer(allocator: Allocator) void {
     }
 }
 var last_x: usize = 0;
-fn cursorLeft() void {
+fn cursorLeft(buf: []u8, key: term.KeyCode) void {
     if (cursor_index > 0) {
         cursor_index -= 1;
         last_x = toXY(text, cursor_index).x;
+        bufScreen(buf, key);
     }
 }
-fn cursorRight(allocator: Allocator) void {
+fn cursorRight(buf: []u8, key: term.KeyCode) void {
     if (cursor_index < length) {
         cursor_index += 1;
         const pos = positionOnScreen(toXY(text, cursor_index));
         last_x = pos.x;
         if (pos.y == height - 1) {
-            _ = up(text, cursor_index, false, allocator);
+            _ = up(text, cursor_index, false, buf, key);
         }
+        bufScreen(buf, key);
     }
 }
-fn newLine(allocator: Allocator) void {
+fn newLine(allocator: Allocator, buf: []u8, key: term.KeyCode) void {
     extendBuffer(allocator);
     if (cursor_index < length) shiftRight();
     text[cursor_index] = '\n';
     length += 1;
-    cursorRight(allocator);
-    term.write(term.CLEAR_SCREEN);
-    writeScreen(allocator);
+    cursorRight(buf, key);
+    modified = true;
+    bufScreen(buf, key);
 }
-fn writeChar(char: u8, allocator: Allocator) void {
+fn writeChar(char: u8, allocator: Allocator, buf: []u8, key: term.KeyCode) void {
     extendBuffer(allocator);
     if (text.len > 0 and char == text[cursor_index]) return;
     
     if (cursor_index < length) shiftRight();
     text[cursor_index] = char;
-    term.setCursor(positionOnScreen(toXY(text, cursor_index)), allocator);
-    term.writeByte(char);
+    modified = true;
     length += 1;
-    cursorRight(allocator);
-    term.write(term.CLEAR_SCREEN);
-    writeScreen(allocator);
+    cursorRight(buf, key);
 }
-fn backspace(allocator: Allocator) void {
+fn backspace(buf: []u8, key: term.KeyCode) void {
     if (cursor_index > 0) {
         shiftLeft();
+        modified = true;
         length -= 1;
-        cursorLeft();
-        term.setCursor(positionOnScreen(toXY(text, cursor_index)), allocator);
-        var i = cursor_index;
-        while(text[i] != '\n' and i<length) : (i+=1) {
-            term.writeByte(text[i]);
-        }
-        term.writeByte(' ');
-        term.write(term.CLEAR_SCREEN);
-        writeScreen(allocator);
+        cursorLeft(buf, key);
     }
 }
 test "toXY" {
@@ -574,37 +528,36 @@ fn down(a_text: []const u8, start_index: usize) usize {
 fn toLastX(a_text: []const u8, index: usize) usize {
     return min(usize, index + last_x, nextBreak(a_text, index, 1) - 1);
 }
-fn cursorUp(allocator: Allocator) void {
+fn cursorUp(buf: []u8, key: term.KeyCode) void {
     if (cursor_index > 0) {
         if (positionOnScreen(toXY(text, cursor_index)).y == 1 and pageOffset > 0) {
             pageOffset = down(text, pageOffset);
             cursor_index = down(text, cursor_index);
             cursor_index = toLastX(text, cursor_index);
             offset_y += 1;
-            term.write(term.CLEAR_SCREEN);
-            writeScreen(allocator);
+            bufScreen(buf, key);
             return;
         }
         const index = down(text, cursor_index);
         if(index < cursor_index) {
             cursor_index = toLastX(text, index);
+            bufScreen(buf, key);
         }
     }
 }
-fn up(a_text: []const u8, index: usize, update_cursor: bool, allocator: Allocator) void {
+fn up(a_text: []const u8, index: usize, update_cursor: bool, buf: []u8, key: term.KeyCode) void {
     pageOffset = nextBreak(a_text, pageOffset, 1);
     if (update_cursor) {
         cursor_index = nextBreak(a_text, index, 1);
         cursor_index = toLastX(a_text, cursor_index);
     }
     offset_y -= 1;
-    term.write(term.CLEAR_SCREEN);
-    writeScreen(allocator);
+    bufScreen(buf, key);
 }
-fn cursorDown(allocator: Allocator) void {
+fn cursorDown(buf: []u8, key: term.KeyCode) void {
     if(cursor_index < length) {
         if (positionOnScreen(toXY(text, cursor_index)).y == height - 2) {
-            up(text, cursor_index, true, allocator);
+            up(text, cursor_index, true, buf, key);
         } else {
             const index = nextBreak(text, cursor_index, 1);
             if (index == length and length > 0 and text[length - 1] == '\n') {
@@ -614,20 +567,36 @@ fn cursorDown(allocator: Allocator) void {
                 const x = toXY(text, cursor_index).x;
                 if (x > last_x) last_x = x;
             }
+            bufScreen(buf, key);
         }
     }
 }
 
-fn writeKeyCodes(sequence: [4]u8, len: usize, pos: Position, allocator: Allocator) void {
-    setStatusBarMode(allocator);
-    term.setCursor(pos, allocator);
-    term.write("           ");
-    term.setAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, allocator);
-    term.setCursor(pos, allocator);
-    if(len == 0) return;
-    if(len == 1) print("{x}", .{sequence[0]});
-    if(len == 2) print("{x} {x}", .{sequence[0], sequence[1]});
-    if(len == 3) print("{x} {x} {x}", .{sequence[0], sequence[1], sequence[2]});
-    if(len == 4) print("{x} {x} {x} {x}", .{sequence[0], sequence[1], sequence[2], sequence[3]});
-    term.write(term.RESET_MODE);
+const NOBR = "NoBufPrint";
+fn bufKeyCodes(key: term.KeyCode, pos: Position, buf: []u8, index: usize) usize {
+    var i = bufStatusBarMode(buf, index);
+    i = term.bufCursor(pos, buf, i);
+    i = term.bufClipWrite("           ", buf, i, width);
+    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, buf, i);
+    i = term.bufCursor(pos, buf, i);
+    if(key.len == 0) {
+        return i;
+    }
+    if(key.len == 1) {
+        const written = std.fmt.bufPrint(buf[i..], "{x}", .{key.code[0]}) catch @panic(NOBR);
+        i += written.len;
+    }
+    if(key.len == 2) {
+        const written = std.fmt.bufPrint(buf[i..], "{x} {x}", .{key.code[0], key.code[1]}) catch @panic(NOBR);
+        i += written.len;
+    }
+    if(key.len == 3) {
+        const written = std.fmt.bufPrint(buf[i..], "{x} {x} {x}", .{key.code[0], key.code[1], key.code[2]}) catch @panic(NOBR);
+        i += written.len;
+    }
+    if(key.len == 4) {
+        const written = std.fmt.bufPrint(buf[i..], "{x} {x} {x} {x}", .{key.code[0], key.code[1], key.code[2], key.code[3]}) catch @panic(NOBR);
+        i += written.len;
+    }
+    return term.bufClipWrite(term.RESET_MODE, buf, i, width);
 }
