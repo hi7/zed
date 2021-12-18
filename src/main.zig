@@ -14,4 +14,3 @@ pub fn main() anyerror!void {
 
     try edit.init(if (args.len > 1) args[1] else null, gpa);
 }
-

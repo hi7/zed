@@ -74,7 +74,7 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
 
     term.updateWindowSize();
     // multiple times the space for long utf codes and ESC-Seq.
-    screen = allocator.alloc(u8, width * height * 4) catch @panic(OOM);
+    screen = allocator.alloc(u8, width * height * 6) catch @panic(OOM);
     defer allocator.free(screen);
     term.rawMode(5);
     term.write(term.CLEAR_SCREEN);
