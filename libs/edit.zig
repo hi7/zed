@@ -118,6 +118,7 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) cursorRight(screen, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) cursorLeft(screen, key);
     }
+    writeKeyCodes(screen, 0, key);
 }
 
 pub fn updateSize(buf: []u8, key: term.KeyCode) void {
@@ -289,10 +290,14 @@ fn bufScreen(buf: []u8, key: term.KeyCode) void {
     var i = bufMenuBar(buf, 0);
     i = bufText(buf, i);
     i = bufStatusBar(buf, i);
-    i = bufKeyCodes(key, Position{
+    writeKeyCodes(buf, i, key);
+}
+
+fn writeKeyCodes(buf: []u8, index: usize, key: term.KeyCode) void {
+    var i = bufKeyCodes(key, Position{
         .x = width - keyCodeOffset + 10, 
         .y = term.config.height - 1}, 
-        buf, i);
+        buf, index);
     i = bufTextCursor(toXY(text, cursor_index), buf, i);
     term.write(buf[0..i]);
 }
