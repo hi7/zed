@@ -178,8 +178,7 @@ fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     term.write(name);
 }
 inline fn bufMenuBar(buf: []u8, index: usize) usize {
-    var i = term.bufClipWrite(term.CLEAR_SCREEN, buf, index, width);
-    i = bufMenuBarMode(buf, i);
+    var i = bufMenuBarMode(buf, index);
     i = term.bufClipWrite(term.CURSOR_HOME, buf, i, width);
     i = term.bufWriteRepeat(' ', width - 25, buf, i);
 
