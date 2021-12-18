@@ -77,6 +77,7 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     screen = allocator.alloc(u8, width * height * 4) catch @panic(OOM);
     defer allocator.free(screen);
     term.rawMode(5);
+    term.write(term.CLEAR_SCREEN);
 
     var key: term.KeyCode = undefined;
     while(key.code[0] != term.ctrlKey('q')) {
