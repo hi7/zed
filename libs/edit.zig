@@ -188,7 +188,6 @@ inline fn bufMenuBar(buf: []u8, index: usize) usize {
     return i;
 }
 inline fn menuBar(allocator: Allocator) void {
-    term.write(term.CLEAR_SCREEN);
     setMenuBarMode(allocator);
     term.write(term.CURSOR_HOME);
     repeatChar(' ', width);
