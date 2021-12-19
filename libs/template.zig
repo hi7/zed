@@ -25,6 +25,8 @@ pub const CONFIG_FILE =
     \\* BUILTIN
     \\# defined builtin functions
     \\@help
+    \\@quit
+    \\@save
     \\@open filename
     \\@exec command
     \\@goto-line number
