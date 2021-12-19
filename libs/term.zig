@@ -57,6 +57,7 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
             di += 1;
         }
     }
+    // clear tail of last line
     while (x < max_width) {
         buf[bi] = ' ';
         bi += 1;
