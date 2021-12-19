@@ -1,4 +1,6 @@
 const std = @import("std");
+const math = @import("math.zig");
+const config = @import("config.zig");
 const term = @import("term.zig");
 const mem = std.mem;
 const print = std.debug.print;
@@ -11,7 +13,7 @@ const Scope = term.Scope;
 const Position = term.Position;
 
 // Errors
-const OOM = "OutOfMemory";
+const OOM = "Out of memory error";
 
 var width: u16 = 80;
 var height: u16 = 25;
@@ -23,15 +25,6 @@ var screen: []u8 = undefined;
 var screen_index: usize = 0;
 var modified = false;
 const keyCodeOffset = 21;
-const chunk = 4096;
-
-
-fn min(comptime T: type, a: T, b: T) T {
-    return if (a < b) a else b;
-}
-fn max(comptime T: type, a: T, b: T) T {
-    return if (a > b) a else b;
-}
 
 pub const ControlKey = enum(u8) {
     backspace = 0x7f, 
@@ -48,7 +41,7 @@ pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
     defer file.close();
     length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
-    const expected_length = multipleOf(chunk, length) + chunk;
+    const expected_length = math.multipleOf(config.chunk, length) + config.chunk;
     text = allocator.alloc(u8, expected_length) catch @panic(OOM);
     const bytes_read = file.readAll(text) catch @panic("File too large!");
     assert(bytes_read == length);
@@ -68,7 +61,7 @@ pub fn saveFile() !void {
         term.write(screen[0..size]);
     }
 }
-pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
+pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     _ = updateSize();
     if(filepath != null) try loadFile(filepath.?, allocator);
     defer allocator.free(text);
@@ -94,10 +87,6 @@ pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
     term.cookedMode();
     term.write(term.CLEAR_SCREEN);
     term.write(term.CURSOR_HOME);
-}
-
-inline fn multipleOf(mul: usize, len: usize) usize {
-    return ((len / mul) + 1) * mul;
 }
 
 pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
@@ -317,7 +306,7 @@ fn shiftRight() void {
 
 fn extendBuffer(allocator: Allocator) void {
     if (text.len == 0 or cursor_index == text.len - 1) {
-        var buffer = allocator.alloc(u8, text.len + chunk) catch @panic(OOM);
+        var buffer = allocator.alloc(u8, text.len + config.chunk) catch @panic(OOM);
         if (cursor_index < length) {
             mem.copy(u8, buffer[0..cursor_index - 1], text[0..cursor_index - 1]);
         }
@@ -530,7 +519,7 @@ fn down(a_text: []const u8, start_index: usize) usize {
     return index;
 }
 fn toLastX(a_text: []const u8, index: usize) usize {
-    return min(usize, index + last_x, nextBreak(a_text, index, 1) - 1);
+    return math.min(usize, index + last_x, nextBreak(a_text, index, 1) - 1);
 }
 fn cursorUp(buf: []u8, key: term.KeyCode) void {
     if (cursor_index > 0) {

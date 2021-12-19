@@ -1,4 +1,5 @@
 const std = @import("std");
+const config = @import("config");
 const edit = @import("edit");
 const expect = std.testing.expect;
 
@@ -12,5 +13,6 @@ pub fn main() anyerror!void {
     const args = try std.process.argsAlloc(gpa);
     defer gpa.free(args);
 
-    try edit.init(if (args.len > 1) args[1] else null, gpa);
+    config.load(gpa);
+    try edit.loop(if (args.len > 1) args[1] else null, gpa);
 }

@@ -12,8 +12,12 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("zed", "src/main.zig");
-    exe.addPackagePath("edit", "libs/edit.zig");
+    exe.addPackagePath("math", "libs/math.zig");
+    exe.addPackagePath("template", "libs/template.zig");
+    exe.addPackagePath("files", "libs/files.zig");
     exe.addPackagePath("term", "libs/term.zig");
+    exe.addPackagePath("config", "libs/config.zig");
+    exe.addPackagePath("edit", "libs/edit.zig");
     exe.addPackagePath("reflect", "libs/reflect.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);

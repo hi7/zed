@@ -18,8 +18,8 @@ pub const RESET_MODE = "\x1b[0m";
 pub const RESET_WRAP_MODE = "\x1b[?7l";
 
 // Errors
-const OOM = "OutOfMemory";
-const BO = "BufferOverflow";
+const OOM = "Out of memory error";
+const BO = "Buffer overflow error";
 
 pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
     var di: usize = 0;
