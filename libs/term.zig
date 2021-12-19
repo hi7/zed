@@ -21,6 +21,18 @@ pub const RESET_WRAP_MODE = "\x1b[?7l";
 const OOM = "Out of memory error";
 const BO = "Buffer overflow error";
 
+pub fn bufWrite(data: []const u8, buf: []u8, index: usize) usize {
+    var di: usize = 0;
+    var bi: usize = index;
+    var x: usize = 0;
+    var clear = false;
+    while(di < data.len) {
+        buf[bi] = data[di];
+        di += 1;
+        bi += 1;
+    }
+    return bi;
+}
 pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
     var di: usize = 0;
     var bi: usize = index;
@@ -42,8 +54,13 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
                 clear = false;
                 x = 0;
             }
-            di+=1;
+            di += 1;
         }
+    }
+    while (x < max_width) {
+        buf[bi] = ' ';
+        bi += 1;
+        x += 1;
     }
     return bi;
 }

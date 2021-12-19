@@ -131,15 +131,14 @@ pub fn updateSize() bool {
 var themeColor = Color.red;
 var themeHighlight = Color.white;
 fn bufMenuBarMode(buf: []u8, index: usize) usize {
-    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
+    var i = term.bufWrite(term.RESET_MODE, buf, index);
     return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, buf, i);
 }
 fn bufMenuBarHighlightMode(buf: []u8, index: usize) usize {
-    // return term.bufAttributes(Scope.light_foreground, themeColor, Scope.background, themeHighlight, buf, index);
     return term.bufAttribute(Scope.background, themeHighlight, buf, index);
 }
 fn bufStatusBarMode(buf: []u8, index: usize) usize {
-    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
+    var i = term.bufWrite(term.RESET_MODE, buf, index);
     return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, buf, i);
 }
 fn repeatChar(char: u8, count: u16) void {
@@ -160,7 +159,7 @@ fn bufShortCut(key: u8, name: []const u8, buf: []u8, index: usize) usize {
     var i = bufMenuBarHighlightMode(buf, index);
     i = term.bufWriteByte(key, buf, i);
     i = bufMenuBarMode(buf, i);
-    return term.bufClipWrite(name, buf, i, width);
+    return term.bufWrite(name, buf, i);
 }
 fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     setMenuBarHighlightMode(allocator);
@@ -170,7 +169,7 @@ fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
 }
 inline fn bufMenuBar(buf: []u8, index: usize) usize {
     var i = bufMenuBarMode(buf, index);
-    i = term.bufClipWrite(term.CURSOR_HOME, buf, i, width);
+    i = term.bufWrite(term.CURSOR_HOME, buf, i);
     i = term.bufWriteRepeat(' ', width - 25, buf, i);
 
     i = bufShortCut('S', "ave: Ctrl-s ", buf, i);
@@ -228,7 +227,7 @@ inline fn bufStatusBar(buf: []u8, index: usize) usize {
     i = term.bufWriteRepeat(' ', offset - stats.len, buf, i);
 
     i = term.bufCursor(Position{ .x = offset, .y = height - 1}, buf, i);
-    return term.bufClipWrite("key code:            ", buf, i, width);
+    return term.bufWrite("key code:            ", buf, i);
 }
 test "previousBreak" {
     try expect(previousBreak("", 0, 2) == 0);
@@ -263,7 +262,7 @@ inline fn endOfPageIndex(offset: usize) usize {
 }
 var pageOffset: usize = 0;
 inline fn bufText(buf: []u8, index: usize) usize {
-    var i = term.bufClipWrite(term.RESET_MODE, buf, index, width);
+    var i = term.bufWrite(term.RESET_MODE, buf, index);
     i = term.bufCursor(Position{ .x = 0, .y = 1}, buf, i);
     const eop = endOfPageIndex(pageOffset);
     return term.bufClipWrite(text[pageOffset..eop], buf, i, width);
@@ -569,7 +568,7 @@ const NOBR = "NoBufPrint";
 fn bufKeyCodes(key: term.KeyCode, pos: Position, buf: []u8, index: usize) usize {
     var i = bufStatusBarMode(buf, index);
     i = term.bufCursor(pos, buf, i);
-    i = term.bufClipWrite("           ", buf, i, width);
+    i = term.bufWrite("           ", buf, i);
     i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, buf, i);
     i = term.bufCursor(pos, buf, i);
     if(key.len == 0) {
@@ -591,5 +590,5 @@ fn bufKeyCodes(key: term.KeyCode, pos: Position, buf: []u8, index: usize) usize 
         const written = std.fmt.bufPrint(buf[i..], "{x} {x} {x} {x}", .{key.code[0], key.code[1], key.code[2], key.code[3]}) catch @panic(NOBR);
         i += written.len;
     }
-    return term.bufClipWrite(term.RESET_MODE, buf, i, width);
+    return term.bufWrite(term.RESET_MODE, buf, i);
 }
