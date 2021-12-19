@@ -69,23 +69,25 @@ pub fn saveFile() !void {
     }
 }
 pub fn init(filepath: ?[]u8, allocator: Allocator) !void {
+    _ = updateSize();
     if(filepath != null) try loadFile(filepath.?, allocator);
     defer allocator.free(text);
 
     term.updateWindowSize();
     // multiple times the space for long utf codes and ESC-Seq.
-    screen = allocator.alloc(u8, width * height * 6) catch @panic(OOM);
+    screen = allocator.alloc(u8, width * height * 4) catch @panic(OOM);
     defer allocator.free(screen);
     term.rawMode(5);
     term.write(term.CLEAR_SCREEN);
 
     var key: term.KeyCode = undefined;
+    bufScreen(screen, key);
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
             processKey(key, allocator);
         }
-        updateSize(screen, key);
+        if (updateSize()) bufScreen(screen, key);
     }
 
     term.write(term.RESET_MODE);
@@ -121,7 +123,7 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
     writeKeyCodes(screen, 0, key);
 }
 
-pub fn updateSize(buf: []u8, key: term.KeyCode) void {
+pub fn updateSize() bool {
     term.updateWindowSize();
     var update = false;
     if(term.config.width != width) {
@@ -134,9 +136,7 @@ pub fn updateSize(buf: []u8, key: term.KeyCode) void {
         assert(height > 0);
         update = true;
     }
-    if(update) {
-        bufScreen(buf, key);
-    }
+    return update;
 }
 
 var themeColor = Color.red;
