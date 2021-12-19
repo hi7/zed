@@ -20,7 +20,7 @@ var height: u16 = 25;
 var cursor_index: usize = 0;
 var filename: []u8 = "";
 var text: []u8 = "";
-var length: usize = undefined;
+var text_length: usize = undefined;
 var screen: []u8 = undefined;
 var screen_index: usize = 0;
 var modified = false;
@@ -39,22 +39,22 @@ pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
     filename = filepath;
     const file = try std.fs.cwd().openFile(filename, .{ .read = true });
     defer file.close();
-    length = file.getEndPos() catch @panic("file seek error!");
+    text_length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
-    const expected_length = math.multipleOf(config.chunk, length) + config.chunk;
+    const expected_length = math.multipleOf(config.chunk, text_length) + config.chunk;
     text = allocator.alloc(u8, expected_length) catch @panic(OOM);
     const bytes_read = file.readAll(text) catch @panic("File too large!");
-    assert(bytes_read == length);
+    assert(bytes_read == text_length);
     message = "";
 }
 pub fn saveFile() !void {
     if (filename.len > 0) {
         const file = try std.fs.cwd().openFile(filename, .{ .write = true });
         defer file.close();
-        _ = try file.write(text[0..length]);
-        _ = try file.setEndPos(length);
+        _ = try file.write(text[0..text_length]);
+        _ = try file.setEndPos(text_length);
         const stat = try file.stat();
-        assert(stat.size == length);
+        assert(stat.size == text_length);
         modified = false;
         var size = bufStatusBar(screen, 0);
         size = bufCursor(screen, size);
@@ -253,7 +253,7 @@ inline fn previousBreak(a_text: []const u8, start: usize, count: u16) usize {
 inline fn nextBreak(a_text: []const u8, start: usize, count: usize) usize {
     var found: u16 = 0;
     var index = start;
-    while(found<count and index < length) : (index += 1) {
+    while(found<count and index < text_length) : (index += 1) {
         if(a_text[index] == '\n') found += 1;
     }
     return index;
@@ -293,12 +293,12 @@ fn writeKeyCodes(buf: []u8, index: usize, key: term.KeyCode) void {
 
 fn shiftLeft() void {
     var i = cursor_index;
-    while(i < length) : (i += 1) {
+    while(i < text_length) : (i += 1) {
         text[i-1] = text[i];
     }
 }
 fn shiftRight() void {
-    var i = length;
+    var i = text_length;
     while(i > cursor_index) : (i -= 1) {
         text[i] = text[i-1];
     }
@@ -307,7 +307,7 @@ fn shiftRight() void {
 fn extendBuffer(allocator: Allocator) void {
     if (text.len == 0 or cursor_index == text.len - 1) {
         var buffer = allocator.alloc(u8, text.len + config.chunk) catch @panic(OOM);
-        if (cursor_index < length) {
+        if (cursor_index < text_length) {
             mem.copy(u8, buffer[0..cursor_index - 1], text[0..cursor_index - 1]);
         }
         allocator.free(text);
@@ -323,7 +323,7 @@ fn cursorLeft(buf: []u8, key: term.KeyCode) void {
     }
 }
 fn cursorRight(buf: []u8, key: term.KeyCode) void {
-    if (cursor_index < length) {
+    if (cursor_index < text_length) {
         cursor_index += 1;
         const pos = positionOnScreen(toXY(text, cursor_index));
         last_x = pos.x;
@@ -335,9 +335,9 @@ fn cursorRight(buf: []u8, key: term.KeyCode) void {
 }
 fn newLine(allocator: Allocator, buf: []u8, key: term.KeyCode) void {
     extendBuffer(allocator);
-    if (cursor_index < length) shiftRight();
+    if (cursor_index < text_length) shiftRight();
     text[cursor_index] = '\n';
-    length += 1;
+    text_length += 1;
     cursorRight(buf, key);
     modified = true;
     bufScreen(buf, key);
@@ -346,17 +346,17 @@ fn writeChar(char: u8, allocator: Allocator, buf: []u8, key: term.KeyCode) void 
     extendBuffer(allocator);
     if (text.len > 0 and char == text[cursor_index]) return;
     
-    if (cursor_index < length) shiftRight();
+    if (cursor_index < text_length) shiftRight();
     text[cursor_index] = char;
     modified = true;
-    length += 1;
+    text_length += 1;
     cursorRight(buf, key);
 }
 fn backspace(buf: []u8, key: term.KeyCode) void {
     if (cursor_index > 0) {
         shiftLeft();
         modified = true;
-        length -= 1;
+        text_length -= 1;
         cursorLeft(buf, key);
     }
 }
@@ -548,12 +548,12 @@ fn up(a_text: []const u8, index: usize, update_cursor: bool, buf: []u8, key: ter
     bufScreen(buf, key);
 }
 fn cursorDown(buf: []u8, key: term.KeyCode) void {
-    if(cursor_index < length) {
+    if(cursor_index < text_length) {
         if (positionOnScreen(toXY(text, cursor_index)).y == height - 2) {
             up(text, cursor_index, true, buf, key);
         } else {
             const index = nextBreak(text, cursor_index, 1);
-            if (index == length and length > 0 and text[length - 1] == '\n') {
+            if (index == text_length and text_length > 0 and text[text_length - 1] == '\n') {
                 cursor_index = index;
             } else if(index > cursor_index) {
                 cursor_index = toLastX(text, index);
