@@ -15,8 +15,6 @@ const Position = term.Position;
 // Errors
 const OOM = "Out of memory error";
 
-var text = TextBuffer.new("");
-var screen = ScreenBuffer.new();
 const keyCodeOffset = 21;
 
 const TextBuffer = struct {
@@ -76,35 +74,42 @@ pub const ControlKey = enum(u8) {
     }
 };
 
-pub fn loadFile(filepath: []u8, allocator: Allocator) !void {
-    text.filename = filepath;
-    const file = try std.fs.cwd().openFile(text.filename, .{ .read = true });
+pub fn loadFile(text: TextBuffer, filepath: []u8, allocator: Allocator) TextBuffer {
+    var t = text;
+    t.filename = filepath;
+    const file = std.fs.cwd().openFile(t.filename, .{ .read = true }) catch @panic("File open failed!");
     defer file.close();
-    text.length = file.getEndPos() catch @panic("file seek error!");
+    t.length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
-    const expected_length = math.multipleOf(config.chunk, text.length) + config.chunk;
-    text.content = allocator.alloc(u8, expected_length) catch @panic(OOM);
+    const expected_length = math.multipleOf(config.chunk, t.length) + config.chunk;
+    t.content = allocator.alloc(u8, expected_length) catch @panic(OOM);
     const bytes_read = file.readAll(text.content) catch @panic("File too large!");
-    assert(bytes_read == text.length);
+    assert(bytes_read == t.length);
     message = "";
+    return t;
 }
-pub fn saveFile() !void {
-    if (text.filename.len > 0) {
-        const file = try std.fs.cwd().openFile(text.filename, .{ .write = true });
+pub fn saveFile(text: TextBuffer, screen_content: []u8) !TextBuffer {
+    var t = text;
+    if (t.filename.len > 0) {
+        const file = try std.fs.cwd().openFile(t.filename, .{ .write = true });
         defer file.close();
-        _ = try file.write(text.content[0..text.length]);
-        _ = try file.setEndPos(text.length);
+        _ = try file.write(t.content[0..t.length]);
+        _ = try file.setEndPos(t.length);
         const stat = try file.stat();
-        assert(stat.size == text.length);
-        text.modified = false;
-        var size = bufStatusBar(text, screen.content, 0);
-        size = bufCursor(text, screen.content, size);
-        term.write(screen.content[0..size]);
+        assert(stat.size == t.length);
+        t.modified = false;
+        var size = bufStatusBar(t, screen_content, 0);
+        size = bufCursor(t, screen_content, size);
+        term.write(screen_content[0..size]);
     }
+    return t;
 }
 pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
+    var text = TextBuffer.new("");
+    var screen = ScreenBuffer.new();
+
     _ = term.updateWindowSize();
-    if(filepath != null) try loadFile(filepath.?, allocator);
+    if(filepath != null) text = loadFile(text, filepath.?, allocator);
     defer allocator.free(text.content);
 
     // multiple times the space for long utf codes and ESC-Seq.
@@ -118,7 +123,7 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
-            processKey(key, allocator);
+            text = processKey(text, screen.content, key, allocator);
         }
         if (term.updateWindowSize()) bufScreen(text, screen.content, key);
     }
@@ -129,27 +134,30 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     term.write(term.CURSOR_HOME);
 }
 
-pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
+pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+    var t = text;
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
-            text = newLine(text, screen.content, key, allocator);
+            t = newLine(t, screen_content, key, allocator);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            text = writeChar(c, text, screen.content, key, allocator);
+            t = writeChar(c, t, screen_content, key, allocator);
         }
         if (c == term.ctrlKey('s')) {
-            saveFile() catch |err| {
+            t = saveFile(t, screen_content) catch |err| {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
+                return t;
             };
         }
-        if (c == @enumToInt(ControlKey.backspace)) text = backspace(text, screen.content, key);
+        if (c == @enumToInt(ControlKey.backspace)) t = backspace(t, screen_content, key);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) text = cursorUp(text, screen.content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) text = cursorDown(text, screen.content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) text = cursorRight(text, screen.content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) text = cursorLeft(text, screen.content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) t = cursorUp(t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) t = cursorDown(t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) t = cursorRight(t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) t = cursorLeft(t, screen_content, key);
     }
-    writeKeyCodes(text, screen.content, 0, key);
+    writeKeyCodes(t, screen_content, 0, key);
+    return t;
 }
 
 var themeColor = Color.red;
