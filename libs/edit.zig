@@ -615,30 +615,30 @@ fn cursorDown(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuff
 }
 
 const NOBR = "NoBufPrint";
-fn bufKeyCodes(key: term.KeyCode, pos: Position, scrn: []u8, index: usize) usize {
-    var i = bufStatusBarMode(scrn, index);
-    i = term.bufCursor(pos, scrn, i);
-    i = term.bufWrite("           ", scrn, i);
-    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, scrn, i);
-    i = term.bufCursor(pos, scrn, i);
+fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, index: usize) usize {
+    var i = bufStatusBarMode(screen_content, index);
+    i = term.bufCursor(pos, screen_content, i);
+    i = term.bufWrite("           ", screen_content, i);
+    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, screen_content, i);
+    i = term.bufCursor(pos, screen_content, i);
     if(key.len == 0) {
         return i;
     }
     if(key.len == 1) {
-        const written = std.fmt.bufPrint(scrn[i..], "{x}", .{key.code[0]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x}", .{key.code[0]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 2) {
-        const written = std.fmt.bufPrint(scrn[i..], "{x} {x}", .{key.code[0], key.code[1]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x}", .{key.code[0], key.code[1]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 3) {
-        const written = std.fmt.bufPrint(scrn[i..], "{x} {x} {x}", .{key.code[0], key.code[1], key.code[2]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x}", .{key.code[0], key.code[1], key.code[2]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 4) {
-        const written = std.fmt.bufPrint(scrn[i..], "{x} {x} {x} {x}", .{key.code[0], key.code[1], key.code[2], key.code[3]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x} {x}", .{key.code[0], key.code[1], key.code[2], key.code[3]}) catch @panic(NOBR);
         i += written.len;
     }
-    return term.bufWrite(term.RESET_MODE, scrn, i);
+    return term.bufWrite(term.RESET_MODE, screen_content, i);
 }
