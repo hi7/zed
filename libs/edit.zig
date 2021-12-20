@@ -15,7 +15,6 @@ const Position = term.Position;
 // Errors
 const OOM = "Out of memory error";
 
-var cursor_index: usize = 0;
 var text = TextBuffer.new("");
 var screen = ScreenBuffer.new();
 const keyCodeOffset = 21;
@@ -150,7 +149,7 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) text = cursorRight(text, screen.content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) text = cursorLeft(text, screen.content, key);
     }
-    writeKeyCodes(screen.content, 0, key);
+    writeKeyCodes(text, screen.content, 0, key);
 }
 
 var themeColor = Color.red;
@@ -296,16 +295,16 @@ fn bufScreen(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
     var i = bufMenuBar(screen_content, 0);
     i = bufText(txt, screen_content, i);
     i = bufStatusBar(txt, screen_content, i);
-    writeKeyCodes(screen_content, i, key);
+    writeKeyCodes(txt, screen_content, i, key);
 }
 
-fn writeKeyCodes(screen_content: []u8, index: usize, key: term.KeyCode) void {
+fn writeKeyCodes(txt: TextBuffer, screen_content: []u8, index: usize, key: term.KeyCode) void {
     assert(screen_content.len > index);
     var i = bufKeyCodes(key, Position{
         .x = config.width - keyCodeOffset + 10, 
         .y = config.height - 1}, 
         screen_content, index);
-    i = bufTextCursor(toXY(text.content, cursor_index), screen_content, i);
+    i = bufTextCursor(toXY(txt.content, txt.index), screen_content, i);
     term.write(screen_content[0..i]);
 }
 
@@ -549,7 +548,7 @@ test "cursorUp" {
     txt = newLine(txt, &screen_content, key, allocator);
     txt = writeChar('a', txt, &screen_content, key, allocator);
     txt = cursorUp(txt, &screen_content, key);
-    try expect(toXY(txt.content, cursor_index).x == 0);
+    try expect(toXY(txt.content, txt.index).x == 0);
 }
 fn down(txt: []const u8, start_index: usize) usize {
     var index: usize = undefined;
