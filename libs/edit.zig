@@ -543,13 +543,13 @@ fn isEmptyLine(a_text: []const u8, index: usize) bool {
 test "cursorUp" {
     const allocator = std.testing.allocator;
     var text_content = [_]u8{0} ** 8;
-    var text_buf = TextBuffer.new(&text_content);
+    var txt = TextBuffer.new(&text_content);
     var screen_content = [_]u8{0} ** 9000;
     const key = term.KeyCode{ .code = [4]u8{ 0x01, 0x00, 0x00, 0x00}, .len = 1};
-    text_buf = newLine(text_buf, &screen_content, key, allocator);
-    text_buf = writeChar('a', text_buf, &screen_content, key, allocator);
-    text_buf = cursorUp(text_buf, &screen_content, key);
-    try expect(toXY(text_buf.content, cursor_index).x == 0);
+    txt = newLine(txt, &screen_content, key, allocator);
+    txt = writeChar('a', txt, &screen_content, key, allocator);
+    txt = cursorUp(txt, &screen_content, key);
+    try expect(toXY(txt.content, cursor_index).x == 0);
 }
 fn down(txt: []const u8, start_index: usize) usize {
     var index: usize = undefined;
