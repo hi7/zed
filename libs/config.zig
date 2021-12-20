@@ -17,6 +17,8 @@ var config: []const u8 = "";
 var current_filename: []const u8 = undefined;
 
 pub const chunk = 4096;
+pub var width: u16 = 80;
+pub var height: u16 = 25;
 
 pub fn load(allocator: Allocator) void {
     current_filename = FILENAME;
@@ -31,7 +33,7 @@ fn loadFromHome(allocator: Allocator) []const u8 {
     current_filename = path;
     return files.storeFile(path, allocator) catch {
         current_filename = undefined;
-        return template.CONFIG_FILE;
+        return template.CONFIG;
     };
 }
 pub fn save() !void {

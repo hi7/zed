@@ -1,5 +1,6 @@
 const root = @import("root");
 const std = @import("std");
+const config = @import("config.zig");
 const io = std.io;
 const os = std.os;
 const system = os.system;
@@ -26,7 +27,7 @@ pub fn bufWrite(data: []const u8, buf: []u8, index: usize) usize {
     var bi: usize = index;
     var x: usize = 0;
     var clear = false;
-    while(di < data.len) {
+    while(di < data.len and bi < buf.len) {
         buf[bi] = data[di];
         di += 1;
         bi += 1;
@@ -38,6 +39,7 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
     var bi: usize = index;
     var x: usize = 0;
     var clear = false;
+    assert(buf.len > bi + max_width);
     while(di < data.len) {
         if (x < max_width) {
             if (data[di] == '\n') clear = true;
@@ -57,6 +59,7 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
             di += 1;
         }
     }
+    assert(buf.len > bi + max_width - x);
     // clear tail of last line
     while (x < max_width) {
         buf[bi] = ' ';
@@ -70,6 +73,7 @@ pub fn bufWriteByte(byte: u8, buf: []u8, index: usize) usize {
     return index + 1;
 }
 pub fn bufWriteRepeat(char: u8, count: usize, buf: []u8, index: usize) usize {
+    assert(buf.len >= index + count);
     var i: usize = 0;
     while(i < count) : (i+=1) {
         buf[index + i] = char;
@@ -84,6 +88,7 @@ pub fn writeByte(byte: u8) void {
 }
 
 pub fn bufCursor(pos: Position, buf: []u8, index: usize) usize {
+    assert(buf.len > index);
     const written = std.fmt.bufPrint(buf[index..], "\x1b[{d};{d}H", .{ pos.y + 1, pos.x + 1}) catch @panic(BO);
     return index + written.len;
 }
@@ -97,21 +102,15 @@ pub const Position = struct {
     x: usize, y: usize,
 };
 
-const Config = struct {
-    orig_mode: system.termios,
-    width: u16,
-    height: u16,
-};
-
-pub var config = Config{ .orig_mode = undefined, .width = 0, .height = 0 };
+var orig_mode: system.termios = undefined;
 /// timeout for read(): x/10 seconds, null means wait forever for input
 pub fn rawMode(timeout: ?u8) void {
-    config.orig_mode = os.tcgetattr(os.STDIN_FILENO) catch |err| {
+    orig_mode = os.tcgetattr(os.STDIN_FILENO) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcgetattr failed!");
     };
-    var raw = config.orig_mode;
-    assert(&raw != &config.orig_mode); // ensure raw is a copy    
+    var raw = orig_mode;
+    assert(&raw != &orig_mode); // ensure raw is a copy    
     raw.iflag &= ~(@as(tcflag, system.BRKINT) | @as(tcflag, system.ICRNL) | @as(tcflag, system.INPCK)
          | @as(tcflag, system.ISTRIP) | @as(tcflag, system.IXON));
     //raw.oflag &= ~(@as(tcflag, system.OPOST)); // turn of \n => \n\r
@@ -127,15 +126,25 @@ pub fn rawMode(timeout: ?u8) void {
     };
 }
 pub fn cookedMode() void {
-    os.tcsetattr(os.STDIN_FILENO, .FLUSH, config.orig_mode) catch |err| {
+    os.tcsetattr(os.STDIN_FILENO, .FLUSH, orig_mode) catch |err| {
         print("Error: {s}\n", .{err});
         @panic("tcsetattr failed!");
     };
 }
-pub fn updateWindowSize() void {
+pub fn updateWindowSize() bool {
     const ws = getWindowSize(io.getStdOut()) catch @panic("getWindowSize failed!");
-    config.height = @as(*const u16, &ws.ws_row).*;
-    config.width = @as(*const u16, &ws.ws_col).*;
+    const height = @as(*const u16, &ws.ws_row).*;
+    const width = @as(*const u16, &ws.ws_col).*;
+    var changed = false;
+    if (height != config.height) {
+        changed = true;
+        config.height = height;
+    }
+    if (width != config.width) {
+        changed = true;
+        config.width = width;
+    }
+    return changed;
 }
 fn getWindowSize(fd: std.fs.File) !os.winsize {
     while (true) {
@@ -234,6 +243,7 @@ pub fn setMode(mode: Mode, allocator: Allocator) void {
     write(std.fmt.allocPrint(allocator, "\x1b[{d}m", .{ @enumToInt(mode) - '0' }) catch @panic(OOM));
 }
 pub fn bufAttributeMode(mode: ?Mode, scope: ?Scope, color: ?Color, buf: []u8, index: usize) usize {
+    assert(buf.len > 2);
     var i = index;
     buf[i] = ESC; i+=1;
     buf[i] = SEQ; i+=1;

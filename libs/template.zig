@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const CONFIG_FILE = 
+pub const CONFIG = 
     \\#####################
     \\#  ZED CONFIG FILE  #
     \\#####################
@@ -30,4 +30,11 @@ pub const CONFIG_FILE =
     \\@open filename
     \\@exec command
     \\@goto-line number
+;
+
+pub const HELP = 
+    \\ HELP
+    \\ open Help with F1
+    \\ quit zed:  Ctrl-q
+    \\ save file: Ctrl-s
 ;
