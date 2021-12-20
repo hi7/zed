@@ -17,8 +17,7 @@ const OOM = "Out of memory error";
 
 var cursor_index: usize = 0;
 var text = TextBuffer.new("");
-var screen: []u8 = undefined;
-var screen_index: usize = 0;
+var screen = ScreenBuffer.new();
 const keyCodeOffset = 21;
 
 const TextBuffer = struct {
@@ -60,6 +59,12 @@ const TextBuffer = struct {
 const ScreenBuffer = struct {
     content: []u8,
     index: usize,
+    fn new() ScreenBuffer {
+        return ScreenBuffer {
+            .content = "",
+            .index = 0,
+        };
+    }
 };
 
 pub const ControlKey = enum(u8) {
@@ -93,9 +98,9 @@ pub fn saveFile() !void {
         const stat = try file.stat();
         assert(stat.size == text.length);
         text.modified = false;
-        var size = bufStatusBar(text, screen, 0);
-        size = bufCursor(text, screen, size);
-        term.write(screen[0..size]);
+        var size = bufStatusBar(text, screen.content, 0);
+        size = bufCursor(text, screen.content, size);
+        term.write(screen.content[0..size]);
     }
 }
 pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
@@ -104,19 +109,19 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     defer allocator.free(text.content);
 
     // multiple times the space for long utf codes and ESC-Seq.
-    screen = allocator.alloc(u8, config.width * config.height * 4) catch @panic(OOM);
-    defer allocator.free(screen);
+    screen.content = allocator.alloc(u8, config.width * config.height * 4) catch @panic(OOM);
+    defer allocator.free(screen.content);
     term.rawMode(5);
     term.write(term.CLEAR_SCREEN);
 
     var key: term.KeyCode = undefined;
-    bufScreen(text, screen, key);
+    bufScreen(text, screen.content, key);
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
             processKey(key, allocator);
         }
-        if (term.updateWindowSize()) bufScreen(text, screen, key);
+        if (term.updateWindowSize()) bufScreen(text, screen.content, key);
     }
 
     term.write(term.RESET_MODE);
@@ -129,23 +134,23 @@ pub fn processKey(key: term.KeyCode, allocator: Allocator) void {
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
-            text = newLine(text, screen, key, allocator);
+            text = newLine(text, screen.content, key, allocator);
         } else if (std.ascii.isAlNum(c) or std.ascii.isGraph(c) or c == ' ') {
-            text = writeChar(c, text, screen, key, allocator);
+            text = writeChar(c, text, screen.content, key, allocator);
         }
         if (c == term.ctrlKey('s')) {
             saveFile() catch |err| {
                 message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
             };
         }
-        if (c == @enumToInt(ControlKey.backspace)) text = backspace(text, screen, key);
+        if (c == @enumToInt(ControlKey.backspace)) text = backspace(text, screen.content, key);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) text = cursorUp(text, screen, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) text = cursorDown(text, screen, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) text = cursorRight(text, screen, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) text = cursorLeft(text, screen, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) text = cursorUp(text, screen.content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) text = cursorDown(text, screen.content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) text = cursorRight(text, screen.content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) text = cursorLeft(text, screen.content, key);
     }
-    writeKeyCodes(screen, 0, key);
+    writeKeyCodes(screen.content, 0, key);
 }
 
 var themeColor = Color.red;
@@ -224,8 +229,8 @@ fn bufTextCursor(pos: Position, screen_buf: []u8, index: usize) usize {
     }
     return term.bufCursor(screen_pos, screen_buf, index);
 }
-fn bufCursor(txt: TextBuffer, screen_buf: []u8, index: usize) usize {
-    return bufTextCursor(toXY(txt.content, txt.index), screen_buf, index);
+fn bufCursor(txt: TextBuffer, screen_content: []u8, index: usize) usize {
+    return bufTextCursor(toXY(txt.content, txt.index), screen_content, index);
 }
 fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
@@ -236,18 +241,18 @@ inline fn mod(changed: bool) []const u8 {
 }
 
 pub var message: []const u8 = "READY.";
-inline fn bufStatusBar(buf: TextBuffer, screen_buf: []u8, index: usize) usize {
-    var i = bufStatusBarMode(screen_buf, index);
-    i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_buf, i);
-    const pos = toXY(buf.content, cursor_index);
-    const stats = std.fmt.bufPrint(screen_buf[i..], "L{d}:C{d} {s}{s} {s}", 
-        .{pos.y + 1, pos.x + 1, buf.filename, mod(buf.modified), message}) catch @panic(OOM);
+inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, index: usize) usize {
+    var i = bufStatusBarMode(screen_content, index);
+    i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
+    const pos = toXY(txt.content, txt.index);
+    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
+        .{pos.y + 1, pos.x + 1, txt.filename, mod(txt.modified), message}) catch @panic(OOM);
     i += stats.len;
     const offset = config.width - keyCodeOffset;
-    i = term.bufWriteRepeat(' ', offset - stats.len, screen_buf, i);
+    i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
 
-    i = term.bufCursor(Position{ .x = offset, .y = config.height - 1}, screen_buf, i);
-    return term.bufWrite("key code:            ", screen_buf, i);
+    i = term.bufCursor(Position{ .x = offset, .y = config.height - 1}, screen_content, i);
+    return term.bufWrite("key code:            ", screen_content, i);
 }
 test "previousBreak" {
     try expect(previousBreak("", 0, 2) == 0);
@@ -287,21 +292,21 @@ inline fn bufText(txt: TextBuffer, screen_buf: []u8, index: usize) usize {
     const eop = endOfPageIndex(txt);
     return term.bufClipWrite(txt.content[txt.page_offset..eop], screen_buf, i, config.width);
 }
-fn bufScreen(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) void {
-    var i = bufMenuBar(screen_buf, 0);
-    i = bufText(txt, screen_buf, i);
-    i = bufStatusBar(txt, screen_buf, i);
-    writeKeyCodes(screen_buf, i, key);
+fn bufScreen(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
+    var i = bufMenuBar(screen_content, 0);
+    i = bufText(txt, screen_content, i);
+    i = bufStatusBar(txt, screen_content, i);
+    writeKeyCodes(screen_content, i, key);
 }
 
-fn writeKeyCodes(screen_buf: []u8, index: usize, key: term.KeyCode) void {
-    assert(screen_buf.len > index);
+fn writeKeyCodes(screen_content: []u8, index: usize, key: term.KeyCode) void {
+    assert(screen_content.len > index);
     var i = bufKeyCodes(key, Position{
         .x = config.width - keyCodeOffset + 10, 
         .y = config.height - 1}, 
-        screen_buf, index);
-    i = bufTextCursor(toXY(text.content, cursor_index), screen_buf, i);
-    term.write(screen_buf[0..i]);
+        screen_content, index);
+    i = bufTextCursor(toXY(text.content, cursor_index), screen_content, i);
+    term.write(screen_content[0..i]);
 }
 
 fn shiftLeft(txt: TextBuffer) TextBuffer {
@@ -340,40 +345,40 @@ fn extendBufferIfNeeded(txt: TextBuffer, allocator: Allocator) TextBuffer {
     return t;
 }
 
-fn cursorLeft(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn cursorLeft(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.index > 0) {
         t.index -= 1;
         t.last_x = toXY(t.content, t.index).x;
-        bufScreen(t, screen_buf, key);
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
-fn cursorRight(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn cursorRight(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.index < t.length) {
         t.index += 1;
         const pos = positionOnScreen(toXY(t.content, t.index));
         t.last_x = pos.x;
         if (pos.y == config.height - 1) {
-            _ = up(t, false, screen_buf, key);
+            _ = up(t, false, screen_content, key);
         }
-        bufScreen(t, screen_buf, key);
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
-fn newLine(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+fn newLine(txt: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
     var i = t.index;
     if (i < t.length) t = shiftRight(t);
     t.content[i] = '\n';
     t.length += 1;
-    t = cursorRight(t, screen_buf, key);
+    t = cursorRight(t, screen_content, key);
     t.modified = true;
-    bufScreen(t, screen_buf, key);
+    bufScreen(t, screen_content, key);
     return t;
 }
-fn writeChar(char: u8, txt: TextBuffer, screen_buf: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+fn writeChar(char: u8, txt: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
     // no difference to text buffer => change to propagate
     if (t.length > 0 and char == t.content[t.index]) return t;
@@ -382,16 +387,16 @@ fn writeChar(char: u8, txt: TextBuffer, screen_buf: []u8, key: term.KeyCode, all
     t.content[t.index] = char;
     t.modified = true;
     t.length += 1;
-    t = cursorRight(t, screen_buf, key);
+    t = cursorRight(t, screen_content, key);
     return t;
 }
-fn backspace(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn backspace(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.index > 0) {
         t = shiftLeft(t);
         t.modified = true;
         t.length -= 1;
-        t = cursorLeft(t, screen_buf, key);
+        t = cursorLeft(t, screen_content, key);
     }
     return t;
 }
@@ -559,7 +564,7 @@ fn down(txt: []const u8, start_index: usize) usize {
 fn toLastX(txt: TextBuffer, index: usize) usize {
     return math.min(usize, index + txt.last_x, nextBreak(txt, index, 1) - 1);
 }
-fn cursorUp(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn cursorUp(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.index > 0) {
         if (positionOnScreen(toXY(t.content, t.index)).y == 1 and t.page_offset > 0) {
@@ -567,18 +572,18 @@ fn cursorUp(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
             t.index = down(t.content, t.index);
             t.index = toLastX(t, t.index);
             t.y_offset += 1;
-            bufScreen(t, screen_buf, key);
+            bufScreen(t, screen_content, key);
             return t;
         }
         const index = down(t.content, t.index);
         if(index < t.index) {
             t.index = toLastX(t, t.index);
-            bufScreen(t, screen_buf, key);
+            bufScreen(t, screen_content, key);
         }
     }
     return t;
 }
-fn up(txt: TextBuffer, update_cursor: bool, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn up(txt: TextBuffer, update_cursor: bool, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     t.page_offset = nextBreak(t, t.page_offset, 1);
     if (update_cursor) {
@@ -586,14 +591,14 @@ fn up(txt: TextBuffer, update_cursor: bool, screen_buf: []u8, key: term.KeyCode)
         t.index = toLastX(t, t.index);
     }
     t.y_offset -= 1;
-    bufScreen(t, screen_buf, key);
+    bufScreen(t, screen_content, key);
     return t;
 }
-fn cursorDown(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
+fn cursorDown(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if(t.index < t.length) {
         if (positionOnScreen(toXY(t.content, t.index)).y == config.height - 2) {
-            t = up(t, true, screen_buf, key);
+            t = up(t, true, screen_content, key);
         } else {
             const index = nextBreak(t, t.index, 1);
             if (index == t.length and t.length > 0 and t.content[t.length - 1] == '\n') {
@@ -603,7 +608,7 @@ fn cursorDown(txt: TextBuffer, screen_buf: []u8, key: term.KeyCode) TextBuffer {
                 const x = toXY(t.content, t.index).x;
                 if (x > t.last_x) t.last_x = x;
             }
-            bufScreen(t, screen_buf, key);
+            bufScreen(t, screen_content, key);
         }
     }
     return t;
