@@ -26,11 +26,10 @@ const TextBuffer = struct {
     last_x: usize,
     y_offset: usize,
     page_offset: usize,
-    // TODO chech if y_offset could be expressed via page_offset
-    fn new(txt: []u8) TextBuffer {
+    fn new(txt: []u8, len: usize) TextBuffer {
         return TextBuffer {
             .content = txt,
-            .length = 0,
+            .length = len,
             .index = 0,
             .filename = "",
             .modified = false,
@@ -50,6 +49,22 @@ const TextBuffer = struct {
             .y_offset = orig.y_offset,
             .page_offset = orig.page_offset,
         };
+    }
+    fn forTest(txt: []const u8, comptime len: usize) TextBuffer {
+        var result = TextBuffer {
+            .content = "",
+            .length = len,
+            .index = 0,
+            .filename = "",
+            .modified = false,
+            .last_x = 0,
+            .y_offset = 1,
+            .page_offset = 0,
+        };
+        var c = [_]u8{0} ** len;
+        result.content = &c;
+        std.mem.copy(u8, result.content, txt);
+        return result;
     }
 };
 
@@ -105,7 +120,7 @@ pub fn saveFile(text: TextBuffer, screen_content: []u8) !TextBuffer {
     return t;
 }
 pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
-    var text = TextBuffer.new("");
+    var text = TextBuffer.new("", 0);
     var screen = ScreenBuffer.new();
 
     _ = term.updateWindowSize();
@@ -243,8 +258,8 @@ fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
 }
 
-inline fn mod(changed: bool) []const u8 {
-    return if (changed) "*" else "";
+inline fn mod(text: TextBuffer) []const u8 {
+    return if (text.filename.len > 0 and text.modified) "*" else "";
 }
 
 pub var message: []const u8 = "READY.";
@@ -253,7 +268,7 @@ inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, index: usize) usiz
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
     const pos = toXY(txt.content, txt.index);
     const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
-        .{pos.y + 1, pos.x + 1, txt.filename, mod(txt.modified), message}) catch @panic(OOM);
+        .{pos.y + 1, pos.x + 1, txt.filename, mod(txt), message}) catch @panic(OOM);
     i += stats.len;
     const offset = config.width - keyCodeOffset;
     i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
@@ -262,26 +277,47 @@ inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, index: usize) usiz
     return term.bufWrite("key code:            ", screen_content, i);
 }
 test "previousBreak" {
-    try expect(previousBreak("", 0, 2) == 0);
-    try expect(previousBreak("\n", 0, 1) == 0);
-    try expect(previousBreak("\na", 1, 1) == 0);
-    try expect(previousBreak("a\n", 1, 1) == 1);
-    try expect(previousBreak("a\n\n", 2, 2) == 1);
-    try expect(previousBreak("a\n\nb", 3, 2) == 1);
-    try expect(previousBreak("a\nb\nc", 4, 2) == 1);
-    try expect(previousBreak("a\n\nb\nc", 4, 2) == 2);
-    //print("previousBreak(>>a\\n\\nb<<, 3, 2) = {d}\n", .{previousBreak("a\n\nb", 3, 2)});
+    try expect(previousBreak(TextBuffer.new("", 0), 0, 2) == 0);
+    try expect(previousBreak(TextBuffer.forTest("\n", 1), 0, 1) == 0);
+    try expect(previousBreak(TextBuffer.forTest("\na", 2), 1, 1) == 0);
+    try expect(previousBreak(TextBuffer.forTest("a\n", 2), 1, 1) == 0);
+    try expect(previousBreak(TextBuffer.forTest("\n\n", 2), 1, 1) == 0);
+    try expect(previousBreak(TextBuffer.forTest("\n\na", 3), 2, 1) == 1);
+    try expect(previousBreak(TextBuffer.forTest("a\n\n", 3), 2, 2) == 0);
+    try expect(previousBreak(TextBuffer.forTest("a\n\nb", 4), 3, 2) == 1);
+    try expect(previousBreak(TextBuffer.forTest("a\nb\nc", 5), 4, 2) == 1);
+    try expect(previousBreak(TextBuffer.forTest("a\n\nb\na", 6), 4, 2) == 1);
 }
-inline fn previousBreak(txt: []const u8, start: usize, count: u16) usize {
+inline fn previousBreak(txt: TextBuffer, start: usize, count: u16) usize {
+    if (start >= txt.length) return txt.length;
+    if (start == 0) return 0;
+
     var found: u16 = 0;
-    var index = start;
+    var index = start - 1;
     while(found<count and index > 0) : (index -= 1) {
-        if(txt[index] == '\n') found += 1;
+        if(txt.content[index] == '\n') found += 1;
         if (found==count) return index;
     }
     return index;
 }
+test "nextBreak" {
+    var t = TextBuffer.new("", 0);
+    try expect(nextBreak(t, 0, 2) == 0);
+    try expect(nextBreak(t, 0, 1) == 0);
+    try expect(nextBreak(TextBuffer.forTest("a", 1), 0, 1) == 1);
+    try expect(nextBreak(TextBuffer.forTest("\n", 1), 0, 1) == 1);
+    try expect(nextBreak(TextBuffer.forTest("\na", 2), 1, 1) == 2);
+    try expect(nextBreak(TextBuffer.forTest("a\n", 2), 1, 1) == 2);
+    try expect(nextBreak(TextBuffer.forTest("\n\n", 2), 1, 1) == 2);
+    try expect(nextBreak(TextBuffer.forTest("\n\na", 3), 2, 1) == 3);
+    try expect(nextBreak(TextBuffer.forTest("a\n\n", 3), 2, 2) == 3);
+    try expect(nextBreak(TextBuffer.forTest("a\n\nb", 4), 3, 2) == 4);
+    try expect(nextBreak(TextBuffer.forTest("a\nb\nc", 5), 4, 2) == 5);
+    try expect(nextBreak(TextBuffer.forTest("a\n\nb\nc", 6), 4, 2) == 6);
+}
 inline fn nextBreak(txt: TextBuffer, start: usize, count: usize) usize {
+    if (start >= txt.length) return txt.length;
+
     var found: u16 = 0;
     var index = start;
     while(found<count and index < txt.length) : (index += 1) {
@@ -368,7 +404,7 @@ fn cursorRight(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuf
         const pos = positionOnScreen(toXY(t.content, t.index));
         t.last_x = pos.x;
         if (pos.y == config.height - 1) {
-            _ = up(t, false, screen_content, key);
+            _ = oneLineDown(t, false, screen_content, key);
         }
         bufScreen(t, screen_content, key);
     }
@@ -537,6 +573,8 @@ test "emptyLine" {
     try expect(isEmptyLine("\n\n", 0));
     try expect(isEmptyLine("\na\n", 0));
     try expect(!isEmptyLine("\na\n", 1));
+    try expect(!isEmptyLine("a\n\n", 1));
+    try expect(isEmptyLine("a\n\n", 2));
 }
 fn isEmptyLine(a_text: []const u8, index: usize) bool {
     if (a_text.len == 0) return true;
@@ -547,23 +585,30 @@ fn isEmptyLine(a_text: []const u8, index: usize) bool {
     }
     return false;
 }
-test "cursorUp" {
-    const allocator = std.testing.allocator;
-    var text_content = [_]u8{0} ** 8;
-    var txt = TextBuffer.new(&text_content);
-    var screen_content = [_]u8{0} ** 9000;
-    const key = term.KeyCode{ .code = [4]u8{ 0x01, 0x00, 0x00, 0x00}, .len = 1};
-    txt = newLine(txt, &screen_content, key, allocator);
-    txt = writeChar('a', txt, &screen_content, key, allocator);
-    txt = cursorUp(txt, &screen_content, key);
-    try expect(toXY(txt.content, txt.index).x == 0);
+test "oneLineUp" {
+    try expect(oneLineUp(TextBuffer.forTest("", 0), 0) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("", 0), 1) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("", 0), 2) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("\na", 2), 1) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("\na", 2), 2) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("a\n", 2), 1) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("\n\n", 2), 1) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("\n\na", 3), 2) == 1);
+    try expect(oneLineUp(TextBuffer.forTest("a\n\n", 3), 2) == 0);
+    try expect(oneLineUp(TextBuffer.forTest("\na\n", 3), 2) == 0);
 }
-fn down(txt: []const u8, start_index: usize) usize {
+fn oneLineUp(txt: TextBuffer, start: usize) usize {
+    var s = start;
+    if (s >= txt.length) {
+        s = if(txt.length > 0) txt.length - 1 else 0;
+    }
+    if (s == 0) return 0;
+
     var index: usize = undefined;
-    if (isEmptyLine(txt, start_index - 1)) {
-        index = previousBreak(txt, start_index - 1, 1);
+    if (isEmptyLine(txt.content, s - 1)) {
+        index = previousBreak(txt, s, 1);
     } else {
-        index = previousBreak(txt, start_index - 1, 2);
+        index = previousBreak(txt, s, 2);
         if(index > 0) index += 1;
     }
     return index;
@@ -571,26 +616,40 @@ fn down(txt: []const u8, start_index: usize) usize {
 fn toLastX(txt: TextBuffer, index: usize) usize {
     return math.min(usize, index + txt.last_x, nextBreak(txt, index, 1) - 1);
 }
+test "cursorUp" {
+    const allocator = std.testing.allocator;
+    var txt = TextBuffer.forTest("a\na\n", 4);
+    txt.index = 4;
+    var screen_content = [_]u8{0} ** 9000;
+    const key = term.KeyCode{ .code = [_]u8{ 0x1b, 0x5b, 0x41, 0x00}, .len = 3};
+    txt = cursorUp(txt, &screen_content, key);
+    print("index: expect 2 but is {d}\n", .{txt.index});
+    try expect(txt.index == 2);
+
+    try expect(toXY(txt.content, txt.index).x == 0);
+    print("y: expect 2 but is {d}\n", .{toXY(txt.content, txt.index).y});
+    try expect(toXY(txt.content, txt.index).y == 2);
+}
 fn cursorUp(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.index > 0) {
         if (positionOnScreen(toXY(t.content, t.index)).y == 1 and t.page_offset > 0) {
-            t.page_offset = down(t.content, t.page_offset);
-            t.index = down(t.content, t.index);
+            t.page_offset = oneLineUp(t, t.page_offset);
+            t.index = oneLineUp(t, t.index);
             t.index = toLastX(t, t.index);
             t.y_offset += 1;
             bufScreen(t, screen_content, key);
             return t;
         }
-        const index = down(t.content, t.index);
+        const index = oneLineUp(t, t.index);
         if(index < t.index) {
-            t.index = toLastX(t, t.index);
+            t.index = toLastX(t, index);
             bufScreen(t, screen_content, key);
         }
     }
     return t;
 }
-fn up(txt: TextBuffer, update_cursor: bool, screen_content: []u8, key: term.KeyCode) TextBuffer {
+fn oneLineDown(txt: TextBuffer, update_cursor: bool, screen_content: []u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     t.page_offset = nextBreak(t, t.page_offset, 1);
     if (update_cursor) {
@@ -605,7 +664,7 @@ fn cursorDown(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuff
     var t = txt;
     if(t.index < t.length) {
         if (positionOnScreen(toXY(t.content, t.index)).y == config.height - 2) {
-            t = up(t, true, screen_content, key);
+            t = oneLineDown(t, true, screen_content, key);
         } else {
             const index = nextBreak(t, t.index, 1);
             if (index == t.length and t.length > 0 and t.content[t.length - 1] == '\n') {
