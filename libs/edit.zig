@@ -13,6 +13,8 @@ const Scope = term.Scope;
 const Position = term.Position;
 
 const NEW_LINE = 0x0a;
+const MENU_BAR_HEIGHT = 1;
+const STATUS_BAR_HEIGHT = 1;
 
 // Errors
 const OOM = "Out of memory error";
@@ -68,7 +70,6 @@ const TextBuffer = struct {
     filename: []u8,
     modified: bool,
     last_x: usize,
-    y_offset: usize,
     page_y: usize,
     fn rows(self: *const TextBuffer) usize {
         var n: usize = 0;
@@ -142,7 +143,6 @@ const TextBuffer = struct {
             .filename = "",
             .modified = false,
             .last_x = 0,
-            .y_offset = 1,
             .page_y = 0,
         };
     }
@@ -154,7 +154,6 @@ const TextBuffer = struct {
             .filename = orig.filename,
             .modified = orig.modified,
             .last_x = orig.last_x,
-            .y_offset = orig.y_offset,
             .page_y = orig.page_y,
         };
     }
@@ -166,7 +165,6 @@ const TextBuffer = struct {
             .filename = "",
             .modified = false,
             .last_x = 0,
-            .y_offset = 1,
             .page_y = 0,
         };
     }
@@ -351,11 +349,10 @@ fn fileColor(changed: bool) Color {
     return if(changed) Color.yellow else Color.white;
 }
 
-var offset_y: isize = 1;
 inline fn positionOnScreen(pos: Position) Position {
     return Position{ 
         .x = pos.x, 
-        .y = @intCast(usize, @intCast(isize, pos.y) + offset_y),
+        .y = @intCast(usize, @intCast(isize, pos.y) + MENU_BAR_HEIGHT),
     };
 }
 fn bufTextCursor(pos: Position, screen_content: []u8, screen_index: usize) usize {
@@ -521,9 +518,9 @@ fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBu
         }
         const pos = positionOnScreen(t.cursor);
         t.last_x = pos.x;
-        // if (pos.y == config.height - 1) {
-            // _ = oneLineDown(t, false, screen_content, key);
-        // }
+        if (pos.y == config.height - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT) {
+            _ = scrollUp(t);
+        }
         bufScreen(t, screen_content, key);
     }
     return t;
@@ -532,7 +529,7 @@ fn newLine(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator:
     var t = extendBufferIfNeeded(txt, allocator);
     var i = t.cursorIndex();
     if (i < t.length) t = shiftRight(t);
-    t.content[i] = '\n';
+    t.content[i] = NEW_LINE;
     t.length += 1;
     t = cursorRight(t, screen_content, key);
     t.modified = true;
@@ -595,6 +592,18 @@ fn scrollDown(txt: TextBuffer) TextBuffer {
     t.page_y = 0;
     return t;
 }
+test "scrollUp" {
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("a\nb\nc", &t);
+    txt = scrollUp(txt);
+    try expect(txt.page_y == 1);
+}
+fn scrollUp(txt: TextBuffer) TextBuffer {
+    var t = txt;
+    t.page_y = 1;
+    return t;
+}
+
 test "cursorUp" {
     const allocator = std.testing.allocator;
     var t = [_]u8{0} ** 4;
@@ -625,17 +634,6 @@ fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffe
             t.cursor.x = t.last_x;
         }
     }
-    return t;
-}
-test "scrollUp" {
-    var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("a\nb\nc", &t);
-    txt = scrollUp(txt);
-    try expect(txt.page_y == 1);
-}
-fn scrollUp(txt: TextBuffer) TextBuffer {
-    var t = txt;
-    t.page_y = 1;
     return t;
 }
 
