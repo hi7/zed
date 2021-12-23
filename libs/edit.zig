@@ -466,16 +466,24 @@ fn extendBufferIfNeeded(txt: TextBuffer, allocator: Allocator) TextBuffer {
 
 fn cursorLeft(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
+    var update = false;
     if (t.cursor.x > 0) {
         t.cursor.x -= 1;
         t.last_x = t.cursor.x;
-        bufScreen(t, screen_content, key);
+        update = true;
     } else {
         if (t.cursor.y > 0) {
             t.cursor.x = t.rowLength(t.cursor.y - 1) - 1;
             t.cursor.y -= 1;
-            bufScreen(t, screen_content, key);
+            if (t.page_y > 0 and positionOnScreen(t.cursor, t.page_y).y == 0) {
+                t = scrollDown(t);
+            }
+            update = true;
         }
+    }
+    if (update) {
+        t.last_x = t.cursor.x;
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
@@ -626,18 +634,16 @@ fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffe
     var t = txt;
     var i = t.cursorIndex();
     if (t.cursor.y > 0) {
-        if (positionOnScreen(t.cursor, t.page_y).y == 1 and t.page_y > 0) {
+        if (positionOnScreen(t.cursor, t.page_y).y == MENU_BAR_HEIGHT and t.page_y > 0) {
             t = scrollDown(t);
-            bufScreen(t, screen_content, key);
-            return t;
         }
         t.cursor.y -= 1;
         if(t.rowLength(t.cursor.y) - 1 < t.last_x) {
             t.cursor.x = t.rowLength(t.cursor.y) - 1;
-            bufScreen(t, screen_content, key);
         } else {
             t.cursor.x = t.last_x;
         }
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
@@ -655,7 +661,7 @@ fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuf
             t.cursor.x = t.last_x;
         }
 
-        if (positionOnScreen(t.cursor, t.page_y).y == config.height - 2) {
+        if (positionOnScreen(t.cursor, t.page_y).y == config.height - MENU_BAR_HEIGHT and t.page_y < t.rows()) {
             t = scrollUp(t);
             message = "UP!";
         }
