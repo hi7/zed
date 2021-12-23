@@ -349,24 +349,24 @@ fn fileColor(changed: bool) Color {
     return if(changed) Color.yellow else Color.white;
 }
 
-inline fn positionOnScreen(pos: Position) Position {
+inline fn positionOnScreen(pos: Position, page_y: usize) Position {
     return Position{ 
         .x = pos.x, 
-        .y = @intCast(usize, @intCast(isize, pos.y) + MENU_BAR_HEIGHT),
+        .y = MENU_BAR_HEIGHT + pos.y - page_y,
     };
 }
-fn bufTextCursor(pos: Position, screen_content: []u8, screen_index: usize) usize {
-    var screen_pos = positionOnScreen(pos);
+fn bufTextCursor(pos: Position, page_y: usize, screen_content: []u8, screen_index: usize) usize {
+    var screen_pos = positionOnScreen(pos, page_y);
     if (screen_pos.x >= config.width) {
         screen_pos.x = config.width - 1;
     }
     return term.bufCursor(screen_pos, screen_content, screen_index);
 }
 fn bufCursor(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
-    return bufTextCursor(txt.cursor, screen_content, screen_index);
+    return bufTextCursor(txt.cursor, txt.page_y, screen_content, screen_index);
 }
-fn setTextCursor(pos: Position, allocator: Allocator) void {
-    term.setCursor(positionOnScreen(pos), allocator);
+fn setTextCursor(pos: Position, page_y: usize, allocator: Allocator) void {
+    term.setCursor(positionOnScreen(pos, page_y), allocator);
 }
 
 inline fn mod(text: TextBuffer) []const u8 {
@@ -377,8 +377,8 @@ pub var message: []const u8 = "READY.";
 inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
-    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
-        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.filename, mod(txt), message}) catch @panic(OOM);
+    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} page_y:{d} {s}{s} {s}", 
+        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.page_y, txt.filename, mod(txt), message}) catch @panic(OOM);
     i += stats.len;
     const offset = config.width - keyCodeOffset;
     i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
@@ -421,7 +421,7 @@ fn writeKeyCodes(txt: TextBuffer, screen_content: []u8, screen_index: usize, key
         .x = config.width - keyCodeOffset + 10, 
         .y = config.height - 1}, 
         screen_content, screen_index);
-    i = bufTextCursor(txt.cursor, screen_content, i);
+    i = bufTextCursor(txt.cursor, txt.page_y, screen_content, i);
     term.write(screen_content[0..i]);
 }
 
@@ -516,10 +516,11 @@ fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBu
         } else {
             t.cursor.x += 1;
         }
-        const pos = positionOnScreen(t.cursor);
+        const pos = positionOnScreen(t.cursor, t.page_y);
         t.last_x = pos.x;
-        if (pos.y == config.height - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT) {
-            _ = scrollUp(t);
+        if (pos.y == config.height - MENU_BAR_HEIGHT) {
+            t = scrollUp(t);
+            message = "up";
         }
         bufScreen(t, screen_content, key);
     }
@@ -589,7 +590,9 @@ test "scrollDown" {
 }
 fn scrollDown(txt: TextBuffer) TextBuffer {
     var t = txt;
-    t.page_y = 0;
+    if (t.page_y > 0) {
+        t.page_y -= 1;
+    }
     return t;
 }
 test "scrollUp" {
@@ -600,7 +603,9 @@ test "scrollUp" {
 }
 fn scrollUp(txt: TextBuffer) TextBuffer {
     var t = txt;
-    t.page_y = 1;
+    if (t.page_y < t.rows()) {
+        t.page_y += 1;
+    }
     return t;
 }
 
@@ -621,7 +626,7 @@ fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffe
     var t = txt;
     var i = t.cursorIndex();
     if (t.cursor.y > 0) {
-        if (positionOnScreen(t.cursor).y == 1 and t.page_y > 0) {
+        if (positionOnScreen(t.cursor, t.page_y).y == 1 and t.page_y > 0) {
             t = scrollDown(t);
             bufScreen(t, screen_content, key);
             return t;
@@ -639,25 +644,22 @@ fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffe
 
 fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    var update = false;
     if (t.cursor.y < t.rows()) {
         t.cursor.y += 1;
         const row_len = t.rowLength(t.cursor.y);
         if (row_len == 0) {
             t.cursor.x = 0;
-            update = true;
         } else if(row_len - 1 < t.last_x) {
             t.cursor.x = row_len - 1;
-            update = true;
         } else {
             t.cursor.x = t.last_x;
         }
 
-        if (positionOnScreen(t.cursor).y == config.height - 2) {
+        if (positionOnScreen(t.cursor, t.page_y).y == config.height - 2) {
             t = scrollUp(t);
-            update = true;
+            message = "UP!";
         }
-        if (update) bufScreen(t, screen_content, key);
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
