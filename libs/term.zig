@@ -22,6 +22,10 @@ pub const RESET_WRAP_MODE = "\x1b[?7l";
 const OOM = "Out of memory error";
 const BO = "Buffer overflow error";
 
+pub const Position = struct {
+    x: usize, y: usize,
+};
+
 pub fn bufWrite(data: []const u8, buf: []u8, index: usize) usize {
     var di: usize = 0;
     var bi: usize = index;
@@ -97,10 +101,6 @@ pub fn setCursor(pos: Position, allocator: Allocator) void {
     defer allocator.free(out);
     write(out);
 }
-
-pub const Position = struct {
-    x: usize, y: usize,
-};
 
 var orig_mode: system.termios = undefined;
 /// timeout for read(): x/10 seconds, null means wait forever for input

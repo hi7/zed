@@ -12,61 +12,175 @@ const Color = term.Color;
 const Scope = term.Scope;
 const Position = term.Position;
 
+const NEW_LINE = 0x0a;
+
 // Errors
 const OOM = "Out of memory error";
 
 const keyCodeOffset = 21;
 
+test "indexOfRowStart" {
+    var t = [_]u8{0} ** 5;
+    try expect(TextBuffer.forTest("", &t).indexOfRowStart(0) == 0);
+    try expect(TextBuffer.forTest("", &t).indexOfRowStart(1) == 0);
+    try expect(TextBuffer.forTest("a", &t).indexOfRowStart(0) == 0);
+    try expect(TextBuffer.forTest("\n", &t).indexOfRowStart(0) == 0);
+    try expect(TextBuffer.forTest("\n", &t).indexOfRowStart(1) == 1);
+    try expect(TextBuffer.forTest("\n\n", &t).indexOfRowStart(1) == 1);
+    try expect(TextBuffer.forTest("a\n", &t).indexOfRowStart(1) == 2);
+    try expect(TextBuffer.forTest("a\na", &t).indexOfRowStart(1) == 2);
+    try expect(TextBuffer.forTest("a\n\na", &t).indexOfRowStart(2) == 3);
+}
+test "indexOf" {
+    var t = [_]u8{0} ** 5;
+    try expect(TextBuffer.forTest("", &t).indexOf(Position{.x=0, .y=0}) == 0);
+    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=0, .y=0}) == 0);
+    try expect(TextBuffer.forTest("ab", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(TextBuffer.forTest("a\n", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(TextBuffer.forTest("a\nb", &t).indexOf(Position{.x=0, .y=1}) == 2);
+    try expect(TextBuffer.forTest("a\nb\n", &t).indexOf(Position{.x=0, .y=2}) == 4);
+    try expect(TextBuffer.forTest("a\n\nb", &t).indexOf(Position{.x=0, .y=2}) == 3);
+    try expect(TextBuffer.forTest("a\nb\nc", &t).indexOf(Position{.x=0, .y=2}) == 4);
+}
+test "rowLength" {
+    var t = [_]u8{0} ** 5;
+    try expect(TextBuffer.forTest("", &t).rowLength(0) == 0);
+    try expect(TextBuffer.forTest("a", &t).rowLength(0) == 1);
+    try expect(TextBuffer.forTest("ab", &t).rowLength(0) == 2);
+    try expect(TextBuffer.forTest("\n", &t).rowLength(0) == 1);
+    try expect(TextBuffer.forTest("\n", &t).rowLength(1) == 0);
+    try expect(TextBuffer.forTest("\na", &t).rowLength(0) == 1);
+    try expect(TextBuffer.forTest("\na", &t).rowLength(1) == 1);
+    try expect(TextBuffer.forTest("\na\n", &t).rowLength(1) == 2);
+    try expect(TextBuffer.forTest("\n\n", &t).rowLength(1) == 1);
+    try expect(TextBuffer.forTest("\n\n", &t).rowLength(2) == 0);
+    try expect(TextBuffer.forTest("\n\na", &t).rowLength(2) == 1);
+}
+test "new" {
+    var t = [_]u8{0} ** 5;
+    try expect(TextBuffer.forTest("", &t).length == 0);
+    try expect(TextBuffer.forTest("a", &t).length == 1);
+}
 const TextBuffer = struct {
     content: []u8,
     length: usize,
-    index: usize,
+    cursor: Position,
     filename: []u8,
     modified: bool,
     last_x: usize,
     y_offset: usize,
-    page_offset: usize,
+    page_y: usize,
+    fn rows(self: *const TextBuffer) usize {
+        var n: usize = 0;
+        var i: usize = 0;
+        while (i < self.length) : (i+=1) {
+            if(self.content[i] == NEW_LINE) {
+                n+=1;
+            }
+        }
+        return n;
+    }
+    /// return the index of first charactern in given line
+    fn indexOfRowStart(self: *const TextBuffer, line: usize) usize {
+        if (line == 0) return 0;
+
+        var n: usize = 0;
+        var i: usize = 0;
+        while (i < self.length) : (i+=1) {
+            if(self.content[i] == NEW_LINE) {
+                n+=1;
+                if (n == line) return i + 1;
+            }
+        }
+        if (n == 0) return 0;
+        if (self.content[i] == NEW_LINE) return i + 1;
+        if (n < line) return self.length;
+        @panic("no more lines!");
+    }
+    fn indexOfRowEnd(self: *const TextBuffer, line: usize) usize {
+        return self.indexOfRowStart(line) + self.rowLength(line);
+    }
+    fn nextNewLine(self: *const TextBuffer, index: usize) usize {
+        if (self.length == 0) return 0;
+
+        var i = index;
+        while (i < self.length) : (i+=1) {
+            if(self.content[i] == NEW_LINE) {
+                return i + 1;
+            }
+        }
+        return self.length;
+    }
+    fn rowLength(self: *const TextBuffer, row: usize) usize {
+        if (self.length == 0) return 0;
+
+        const row_start = self.indexOfRowStart(row);
+        const row_end = self.nextNewLine(row_start);
+        if (row_end > row_start) return row_end - row_start;
+        return 0;
+    }
+    fn indexOf(self: *TextBuffer, pos: Position) usize {
+        if (self.length == 0) return 0;
+
+        var i = self.indexOfRowStart(pos.y);
+        const row_length = self.nextNewLine(i) - i;
+        if (pos.x > row_length) {
+            return i + row_length;
+        }
+        // TODO set last_x
+        return i + pos.x;
+    }
+    fn cursorIndex(self: *TextBuffer) usize {
+        return self.indexOf(self.cursor);
+    }
     fn new(txt: []u8, len: usize) TextBuffer {
+        assert(len <= txt.len);
         return TextBuffer {
             .content = txt,
             .length = len,
-            .index = 0,
+            .cursor = Position{ .x = 0, .y = 0 },
             .filename = "",
             .modified = false,
             .last_x = 0,
             .y_offset = 1,
-            .page_offset = 0,
+            .page_y = 0,
         };
     }
     fn copy(orig: TextBuffer, txt: []u8) TextBuffer {
         return TextBuffer {
             .content = txt,
-            .index = orig.index,
+            .cursor = Position{ .x = 0, .y = 0 },
             .length = orig.length,
             .filename = orig.filename,
             .modified = orig.modified,
             .last_x = orig.last_x,
             .y_offset = orig.y_offset,
-            .page_offset = orig.page_offset,
+            .page_y = orig.page_y,
         };
     }
-    fn forTest(txt: []const u8, comptime len: usize) TextBuffer {
-        var result = TextBuffer {
-            .content = "",
-            .length = len,
-            .index = 0,
+    fn forTest(comptime txt: []const u8, t: []u8) TextBuffer {
+        return TextBuffer {
+            .content = literalToArray(txt, t),
+            .length = txt.len,
+            .cursor = Position{ .x = 0, .y = 0 },
             .filename = "",
             .modified = false,
             .last_x = 0,
             .y_offset = 1,
-            .page_offset = 0,
+            .page_y = 0,
         };
-        var c = [_]u8{0} ** len;
-        result.content = &c;
-        std.mem.copy(u8, result.content, txt);
-        return result;
     }
 };
+test "literalToArray" {
+    var result = [_]u8{0} ** 3;
+    var r = literalToArray("abc", &result);
+    try expect(mem.eql(u8, "abc", r));
+}
+fn literalToArray(comptime source: []const u8, dest: []u8) []u8 {
+    mem.copy(u8, dest, source);
+
+    return dest;
+}
 
 const ScreenBuffer = struct {
     content: []u8,
@@ -177,15 +291,15 @@ pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, all
 
 var themeColor = Color.red;
 var themeHighlight = Color.white;
-fn bufMenuBarMode(screen_content: []u8, index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, screen_content, index);
+fn bufMenuBarMode(screen_content: []u8, screen_index: usize) usize {
+    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
     return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, screen_content, i);
 }
-fn bufMenuBarHighlightMode(screen_content: []u8, index: usize) usize {
-    return term.bufAttribute(Scope.background, themeHighlight, screen_content, index);
+fn bufMenuBarHighlightMode(screen_content: []u8, screen_index: usize) usize {
+    return term.bufAttribute(Scope.background, themeHighlight, screen_content, screen_index);
 }
-fn bufStatusBarMode(screen_content: []u8, index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, screen_content, index);
+fn bufStatusBarMode(screen_content: []u8, screen_index: usize) usize {
+    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
     return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, screen_content, i);
 }
 fn repeatChar(char: u8, count: u16) void {
@@ -202,8 +316,8 @@ fn showMessage(message: []const u8, allocator: Allocator) void {
     term.resetMode();
 }
 
-fn bufShortCut(key: u8, name: []const u8, screen_content: []u8, index: usize) usize {
-    var i = bufMenuBarHighlightMode(screen_content, index);
+fn bufShortCut(key: u8, name: []const u8, screen_content: []u8, screen_index: usize) usize {
+    var i = bufMenuBarHighlightMode(screen_content, screen_index);
     i = term.bufWriteByte(key, screen_content, i);
     i = bufMenuBarMode(screen_content, i);
     return term.bufWrite(name, screen_content, i);
@@ -214,8 +328,8 @@ fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
     setMenuBarMode(allocator);
     term.write(name);
 }
-inline fn bufMenuBar(screen_content: []u8, index: usize) usize {
-    var i = bufMenuBarMode(screen_content, index);
+inline fn bufMenuBar(screen_content: []u8, screen_index: usize) usize {
+    var i = bufMenuBarMode(screen_content, screen_index);
     i = term.bufWrite(term.CURSOR_HOME, screen_content, i);
     i = term.bufWriteRepeat(' ', config.width - 25, screen_content, i);
 
@@ -244,15 +358,15 @@ inline fn positionOnScreen(pos: Position) Position {
         .y = @intCast(usize, @intCast(isize, pos.y) + offset_y),
     };
 }
-fn bufTextCursor(pos: Position, screen_content: []u8, index: usize) usize {
+fn bufTextCursor(pos: Position, screen_content: []u8, screen_index: usize) usize {
     var screen_pos = positionOnScreen(pos);
     if (screen_pos.x >= config.width) {
         screen_pos.x = config.width - 1;
     }
-    return term.bufCursor(screen_pos, screen_content, index);
+    return term.bufCursor(screen_pos, screen_content, screen_index);
 }
-fn bufCursor(txt: TextBuffer, screen_content: []u8, index: usize) usize {
-    return bufTextCursor(toXY(txt.content, txt.index), screen_content, index);
+fn bufCursor(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
+    return bufTextCursor(txt.cursor, screen_content, screen_index);
 }
 fn setTextCursor(pos: Position, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos), allocator);
@@ -263,12 +377,11 @@ inline fn mod(text: TextBuffer) []const u8 {
 }
 
 pub var message: []const u8 = "READY.";
-inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, index: usize) usize {
-    var i = bufStatusBarMode(screen_content, index);
+inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
+    var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
-    const pos = toXY(txt.content, txt.index);
     const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
-        .{pos.y + 1, pos.x + 1, txt.filename, mod(txt), message}) catch @panic(OOM);
+        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.filename, mod(txt), message}) catch @panic(OOM);
     i += stats.len;
     const offset = config.width - keyCodeOffset;
     i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
@@ -276,85 +389,48 @@ inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, index: usize) usiz
     i = term.bufCursor(Position{ .x = offset, .y = config.height - 1}, screen_content, i);
     return term.bufWrite("key code:            ", screen_content, i);
 }
-test "previousBreak" {
-    try expect(previousBreak(TextBuffer.new("", 0), 0, 2) == 0);
-    try expect(previousBreak(TextBuffer.forTest("\n", 1), 0, 1) == 0);
-    try expect(previousBreak(TextBuffer.forTest("\na", 2), 1, 1) == 0);
-    try expect(previousBreak(TextBuffer.forTest("a\n", 2), 1, 1) == 0);
-    try expect(previousBreak(TextBuffer.forTest("\n\n", 2), 1, 1) == 0);
-    try expect(previousBreak(TextBuffer.forTest("\n\na", 3), 2, 1) == 1);
-    try expect(previousBreak(TextBuffer.forTest("a\n\n", 3), 2, 2) == 0);
-    try expect(previousBreak(TextBuffer.forTest("a\n\nb", 4), 3, 2) == 1);
-    try expect(previousBreak(TextBuffer.forTest("a\nb\nc", 5), 4, 2) == 1);
-    try expect(previousBreak(TextBuffer.forTest("a\n\nb\na", 6), 4, 2) == 1);
-}
-inline fn previousBreak(txt: TextBuffer, start: usize, count: u16) usize {
-    if (start >= txt.length) return txt.length;
-    if (start == 0) return 0;
+test "endOfPageIndex" {
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("", &t);
+    try expect(endOfPageIndex(txt) == 0);
 
-    var found: u16 = 0;
-    var index = start - 1;
-    while(found<count and index > 0) : (index -= 1) {
-        if(txt.content[index] == '\n') found += 1;
-        if (found==count) return index;
-    }
-    return index;
-}
-test "nextBreak" {
-    var t = TextBuffer.new("", 0);
-    try expect(nextBreak(t, 0, 2) == 0);
-    try expect(nextBreak(t, 0, 1) == 0);
-    try expect(nextBreak(TextBuffer.forTest("a", 1), 0, 1) == 1);
-    try expect(nextBreak(TextBuffer.forTest("\n", 1), 0, 1) == 1);
-    try expect(nextBreak(TextBuffer.forTest("\na", 2), 1, 1) == 2);
-    try expect(nextBreak(TextBuffer.forTest("a\n", 2), 1, 1) == 2);
-    try expect(nextBreak(TextBuffer.forTest("\n\n", 2), 1, 1) == 2);
-    try expect(nextBreak(TextBuffer.forTest("\n\na", 3), 2, 1) == 3);
-    try expect(nextBreak(TextBuffer.forTest("a\n\n", 3), 2, 2) == 3);
-    try expect(nextBreak(TextBuffer.forTest("a\n\nb", 4), 3, 2) == 4);
-    try expect(nextBreak(TextBuffer.forTest("a\nb\nc", 5), 4, 2) == 5);
-    try expect(nextBreak(TextBuffer.forTest("a\n\nb\nc", 6), 4, 2) == 6);
-}
-inline fn nextBreak(txt: TextBuffer, start: usize, count: usize) usize {
-    if (start >= txt.length) return txt.length;
+    txt.content = literalToArray("a", &t);
+    txt.length = 1;
+    try expect(endOfPageIndex(txt) == 1);
 
-    var found: u16 = 0;
-    var index = start;
-    while(found<count and index < txt.length) : (index += 1) {
-        if(txt.content[index] == '\n') found += 1;
-    }
-    return index;
 }
 inline fn endOfPageIndex(txt: TextBuffer) usize {
-    return nextBreak(txt, txt.page_offset, @as(usize, config.height - 2));
+    return txt.indexOfRowEnd(txt.page_y + config.height - 2);
 }
-inline fn bufText(txt: TextBuffer, screen_content: []u8, index: usize) usize {
-    assert(screen_content.len > index);
-    var i = term.bufWrite(term.RESET_MODE, screen_content, index);
+inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
+    assert(screen_content.len > screen_index);
+    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = 1}, screen_content, i);
     const eop = endOfPageIndex(txt);
-    return term.bufClipWrite(txt.content[txt.page_offset..eop], screen_content, i, config.width);
+    return term.bufClipWrite(txt.content[txt.indexOfRowStart(txt.page_y)..eop], screen_content, i, config.width);
 }
-fn bufScreen(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
-    var i = bufMenuBar(screen_content, 0);
-    i = bufText(txt, screen_content, i);
-    i = bufStatusBar(txt, screen_content, i);
-    writeKeyCodes(txt, screen_content, i, key);
+fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+    if (screen_content != null) {
+        var i = bufMenuBar(screen_content.?, 0);
+        i = bufText(txt, screen_content.?, i);
+        i = bufStatusBar(txt, screen_content.?, i);
+        writeKeyCodes(txt, screen_content.?, i, key);
+    }
 }
 
-fn writeKeyCodes(txt: TextBuffer, screen_content: []u8, index: usize, key: term.KeyCode) void {
-    assert(screen_content.len > index);
+fn writeKeyCodes(txt: TextBuffer, screen_content: []u8, screen_index: usize, key: term.KeyCode) void {
+    assert(screen_content.len > screen_index);
     var i = bufKeyCodes(key, Position{
         .x = config.width - keyCodeOffset + 10, 
         .y = config.height - 1}, 
-        screen_content, index);
-    i = bufTextCursor(toXY(txt.content, txt.index), screen_content, i);
+        screen_content, screen_index);
+    i = bufTextCursor(txt.cursor, screen_content, i);
     term.write(screen_content[0..i]);
 }
 
 fn shiftLeft(txt: TextBuffer) TextBuffer {
     var t = txt;
-    var i = t.index;
+    var i = t.cursorIndex();
     while(i < t.length) : (i += 1) {
         t.content[i-1] = t.content[i];
     }
@@ -363,7 +439,8 @@ fn shiftLeft(txt: TextBuffer) TextBuffer {
 fn shiftRight(txt: TextBuffer) TextBuffer {
     var t = txt;
     var i = t.length;
-    while(i > t.index) : (i -= 1) {
+    var ci = t.cursorIndex();
+    while(i > ci) : (i -= 1) {
         t.content[i] = t.content[i-1];
     }
     return t;
@@ -374,45 +451,86 @@ fn extendBuffer(txt: TextBuffer, allocator: Allocator) TextBuffer {
         txt,
         allocator.alloc(u8, txt.content.len + config.chunk) catch @panic(OOM),
     );
-    if (txt.index < txt.content.len) {
-        mem.copy(u8, next_buf.content[0..txt.index - 1], txt.content[0..txt.index - 1]);
+    var t = txt;
+    const i = t.cursorIndex();
+    if (i < txt.content.len) {
+        mem.copy(u8, next_buf.content[0..i - 1], txt.content[0..i - 1]);
     }
     allocator.free(txt.content);
     return next_buf;
 }
 fn extendBufferIfNeeded(txt: TextBuffer, allocator: Allocator) TextBuffer {
     var t = txt;
-    if(txt.content.len == 0 or txt.index >= txt.content.len - 1) {
+    if(t.content.len == 0 or t.cursorIndex() >= t.content.len - 1) {
         t = extendBuffer(txt, allocator);
     }
     return t;
 }
 
-fn cursorLeft(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
+fn cursorLeft(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    if (t.index > 0) {
-        t.index -= 1;
-        t.last_x = toXY(t.content, t.index).x;
+    if (t.cursor.x > 0) {
+        t.cursor.x -= 1;
+        t.last_x = t.cursor.x;
         bufScreen(t, screen_content, key);
-    }
-    return t;
-}
-fn cursorRight(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
-    var t = txt;
-    if (t.index < t.length) {
-        t.index += 1;
-        const pos = positionOnScreen(toXY(t.content, t.index));
-        t.last_x = pos.x;
-        if (pos.y == config.height - 1) {
-            _ = oneLineDown(t, false, screen_content, key);
+    } else {
+        if (t.cursor.y > 0) {
+            t.cursor.x = t.rowLength(t.cursor.y - 1) - 1;
+            t.cursor.y -= 1;
+            bufScreen(t, screen_content, key);
         }
+    }
+    return t;
+}
+test "cursorRight" {
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("", &t);
+    var screen_content = [_]u8{0} ** 9000;
+    const key = term.KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
+    try expect(txt.cursor.x == 0);
+    try expect(txt.cursor.y == 0);
+    txt = cursorRight(txt, null, key);
+    try expect(txt.cursor.x == 0);
+    try expect(txt.cursor.y == 0);
+
+    txt.content = literalToArray("a", &t);
+    txt.length = 1;
+    txt = cursorRight(txt, null, key);
+    try expect(txt.cursor.x == 1);
+    try expect(txt.cursor.y == 0);
+
+    txt.content = literalToArray("a\n", &t);
+    txt.length = 2;
+    txt.cursor.x = 1;
+    txt.cursor.y = 0;
+    try expect(txt.rowLength(0) == 2);
+    txt = cursorRight(txt, null, key);
+    try expect(txt.cursor.x == 0);
+    try expect(txt.cursor.y == 1);
+}
+fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
+    if (txt.length == 0) return txt;
+
+    var t = txt;
+    if (t.cursor.x < t.rowLength(t.cursor.y)) {
+        if (t.content[t.cursorIndex()] == NEW_LINE) {
+            t.cursor.x = 0;
+            t.cursor.y += 1;
+        } else {
+            t.cursor.x += 1;
+        }
+        const pos = positionOnScreen(t.cursor);
+        t.last_x = pos.x;
+        // if (pos.y == config.height - 1) {
+            // _ = oneLineDown(t, false, screen_content, key);
+        // }
         bufScreen(t, screen_content, key);
     }
     return t;
 }
-fn newLine(txt: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+fn newLine(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
-    var i = t.index;
+    var i = t.cursorIndex();
     if (i < t.length) t = shiftRight(t);
     t.content[i] = '\n';
     t.length += 1;
@@ -421,21 +539,39 @@ fn newLine(txt: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: 
     bufScreen(t, screen_content, key);
     return t;
 }
-fn writeChar(char: u8, txt: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+test "writeChar" {
+    const allocator = std.testing.allocator;
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("", &t);
+    const key = term.KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
+    try expect(txt.cursor.x == 0);
+    try expect(txt.cursor.y == 0);
+    txt = writeChar('a', txt, null, key, allocator);
+    try expect(txt.length == 1);
+    try expect(txt.content[0] == 'a');
+    try expect(txt.cursor.x == 1);
+    try expect(txt.cursor.y == 0);
+
+    txt = writeChar('b', txt, null, key, allocator);
+    try expect(txt.length == 2);
+    try expect(txt.content[1] == 'b');
+}
+fn writeChar(char: u8, txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
     // no difference to text buffer => change to propagate
-    if (t.length > 0 and char == t.content[t.index]) return t;
+    const i = t.cursorIndex();
+    if (t.length > 0 and char == t.content[i]) return t;
     
-    if (t.index < t.length) t = shiftRight(t);
-    t.content[t.index] = char;
+    if (i < t.length) t = shiftRight(t);
+    t.content[i] = char;
     t.modified = true;
     t.length += 1;
     t = cursorRight(t, screen_content, key);
     return t;
 }
-fn backspace(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
+fn backspace(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    if (t.index > 0) {
+    if (t.cursorIndex() > 0) {
         t = shiftLeft(t);
         t.modified = true;
         t.length -= 1;
@@ -443,246 +579,94 @@ fn backspace(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffe
     }
     return t;
 }
-test "toXY" {
-    // empty text
-    try expect(toXY("", 0).x == 0);
-    try expect(toXY("", 0).y == 0);
-    try expect(toXY("", 1).x == 0);
-    try expect(toXY("", 1).y == 0);
-    // one character
-    try expect(toXY("a", 0).x == 0);
-    try expect(toXY("a", 0).y == 0);
-    try expect(toXY("a", 1).x == 0);
-    try expect(toXY("a", 1).y == 0);
-    try expect(toXY("a", 2).x == 0);
-    try expect(toXY("a", 2).y == 0);
-    // two character, index: 0
-    try expect(toXY("ab", 0).x == 0);
-    try expect(toXY("ab", 0).y == 0);
-    try expect(toXY("a\n", 0).x == 0);
-    try expect(toXY("a\n", 0).y == 0);
-    try expect(toXY("\na", 0).x == 0);
-    try expect(toXY("\na", 0).y == 0);
-    try expect(toXY("\n\n", 0).x == 0);
-    try expect(toXY("\n\n", 0).y == 0);
-    // two character, index: 1
-    try expect(toXY("ab", 1).x == 1);
-    try expect(toXY("ab", 1).y == 0);
-    try expect(toXY("a\n", 1).x == 1);
-    try expect(toXY("a\n", 1).y == 0);
-    try expect(toXY("\na", 1).x == 0);
-    try expect(toXY("\na", 1).y == 1);
-    try expect(toXY("\n\n", 1).x == 0);
-    try expect(toXY("\n\n", 1).y == 1);
-    // two character, index: 2
-    try expect(toXY("ab", 2).x == 1);
-    try expect(toXY("ab", 2).y == 0);
-    try expect(toXY("a\n", 2).x == 1);
-    try expect(toXY("a\n", 2).y == 0);
-    try expect(toXY("\na", 2).x == 0);
-    try expect(toXY("\na", 2).y == 1);
-    try expect(toXY("\n\n", 2).x == 0);
-    try expect(toXY("\n\n", 2).y == 1);
-    // three character, index: 0
-    try expect(toXY("abc", 0).x == 0);
-    try expect(toXY("abc", 0).y == 0);
-    try expect(toXY("ab\n", 0).x == 0);
-    try expect(toXY("ab\n", 0).y == 0);
-    try expect(toXY("a\nc", 0).x == 0);
-    try expect(toXY("a\nc", 0).y == 0);
-    try expect(toXY("\nbc", 0).x == 0);
-    try expect(toXY("\nbc", 0).y == 0);
-    try expect(toXY("a\n\n", 0).x == 0);
-    try expect(toXY("a\n\n", 0).y == 0);
-    try expect(toXY("\nb\n", 0).x == 0);
-    try expect(toXY("\nb\n", 0).y == 0);
-    try expect(toXY("\n\nc", 0).x == 0);
-    try expect(toXY("\n\nc", 0).y == 0);
-    try expect(toXY("\n\n\n", 0).x == 0);
-    try expect(toXY("\n\n\n", 0).y == 0);
-    // three character, index: 1
-    try expect(toXY("abc", 1).x == 1);
-    try expect(toXY("abc", 1).y == 0);
-    try expect(toXY("ab\n", 1).x == 1);
-    try expect(toXY("ab\n", 1).y == 0);
-    try expect(toXY("a\nc", 1).x == 1);
-    try expect(toXY("a\nc", 1).y == 0);
-    try expect(toXY("\nbc", 1).x == 0);
-    try expect(toXY("\nbc", 1).y == 1);
-    try expect(toXY("a\n\n", 1).x == 1);
-    try expect(toXY("a\n\n", 1).y == 0);
-    try expect(toXY("\nb\n", 1).x == 0);
-    try expect(toXY("\nb\n", 1).y == 1);
-    try expect(toXY("\n\nc", 1).x == 0);
-    try expect(toXY("\n\nc", 1).y == 1);
-    try expect(toXY("\n\n\n", 1).x == 0);
-    try expect(toXY("\n\n\n", 1).y == 1);
-    // three character, index: 2
-    try expect(toXY("abc", 2).x == 2);
-    try expect(toXY("abc", 2).y == 0);
-    try expect(toXY("ab\n", 2).x == 2);
-    try expect(toXY("ab\n", 2).y == 0);
-    try expect(toXY("a\nc", 2).x == 0);
-    try expect(toXY("a\nc", 2).y == 1);
-    try expect(toXY("\nbc", 2).x == 1);
-    try expect(toXY("\nbc", 2).y == 1);
-    try expect(toXY("a\n\n", 2).x == 0);
-    try expect(toXY("a\n\n", 2).y == 1);
-    try expect(toXY("\nb\n", 2).x == 1);
-    try expect(toXY("\nb\n", 2).y == 1);
-    try expect(toXY("\n\nc", 2).x == 0);
-    try expect(toXY("\n\nc", 2).y == 2);
-    try expect(toXY("\n\n\n", 2).x == 0);
-    try expect(toXY("\n\n\n", 2).y == 2);
-    // three character, index: 3
-    try expect(toXY("abc", 3).x == 2);
-    try expect(toXY("abc", 3).y == 0);
-    try expect(toXY("ab\n", 3).x == 2);
-    try expect(toXY("ab\n", 3).y == 0);
-    try expect(toXY("a\nc", 3).x == 0);
-    try expect(toXY("a\nc", 3).y == 1);
-    try expect(toXY("\nbc", 3).x == 1);
-    try expect(toXY("\nbc", 3).y == 1);
-    try expect(toXY("a\n\n", 3).x == 0);
-    try expect(toXY("a\n\n", 3).y == 1);
-    try expect(toXY("\nb\n", 3).x == 1);
-    try expect(toXY("\nb\n", 3).y == 1);
-    try expect(toXY("\n\nc", 3).x == 0);
-    try expect(toXY("\n\nc", 3).y == 2);
-    try expect(toXY("\n\n\n", 3).x == 0);
-    try expect(toXY("\n\n\n", 3).y == 2);
-}
-fn toXY(txt: []const u8, index: usize) Position {
-    if (txt.len == 0) return Position{ .x = 0, .y = 0 };
-    var x: usize = 0; var y: usize = 0; var ny: usize = 0;
-    for(txt) |char, i| {
-        if (ny > 0) { y = ny; ny = 0; x = 0; }
-        x += 1;
-        if (txt[i] == '\n') {
-            ny = y + 1;
-        }
-        if (i == index) break;
-    }
-    return Position{ .x = x - 1, .y = y};
-}
 
-test "emptyLine" {
-    try expect(isEmptyLine("", 0));
-    try expect(isEmptyLine("\n", 0));
-    try expect(!isEmptyLine("a", 0));
-    try expect(isEmptyLine("\n\n", 0));
-    try expect(isEmptyLine("\na\n", 0));
-    try expect(!isEmptyLine("\na\n", 1));
-    try expect(!isEmptyLine("a\n\n", 1));
-    try expect(isEmptyLine("a\n\n", 2));
-}
-fn isEmptyLine(a_text: []const u8, index: usize) bool {
-    if (a_text.len == 0) return true;
-    if (index > 0 and index < a_text.len - 1) {
-        return a_text[index] == '\n' and a_text[index - 1] == '\n';
-    } else {
-        return a_text[index] == '\n';
-    }
-    return false;
-}
-test "oneLineUp" {
-    try expect(oneLineUp(TextBuffer.forTest("", 0), 0) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("", 0), 1) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("", 0), 2) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("\na", 2), 1) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("\na", 2), 2) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("a\n", 2), 1) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("\n\n", 2), 1) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("\n\na", 3), 2) == 1);
-    try expect(oneLineUp(TextBuffer.forTest("a\n\n", 3), 2) == 0);
-    try expect(oneLineUp(TextBuffer.forTest("\na\n", 3), 2) == 0);
-}
-fn oneLineUp(txt: TextBuffer, start: usize) usize {
-    var s = start;
-    if (s >= txt.length) {
-        s = if(txt.length > 0) txt.length - 1 else 0;
-    }
-    if (s == 0) return 0;
-
-    var index: usize = undefined;
-    if (isEmptyLine(txt.content, s - 1)) {
-        index = previousBreak(txt, s, 1);
-    } else {
-        index = previousBreak(txt, s, 2);
-        if(index > 0) index += 1;
-    }
-    return index;
-}
 fn toLastX(txt: TextBuffer, index: usize) usize {
     return math.min(usize, index + txt.last_x, nextBreak(txt, index, 1) - 1);
 }
+test "scrollDown" {
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("a\nb\nc", &t);
+    txt.page_y = 1;
+    txt = scrollDown(txt);
+    try expect(txt.page_y == 0);
+}
+fn scrollDown(txt: TextBuffer) TextBuffer {
+    var t = txt;
+    t.page_y = 0;
+    return t;
+}
 test "cursorUp" {
     const allocator = std.testing.allocator;
-    var txt = TextBuffer.forTest("a\na\n", 4);
-    txt.index = 4;
+    var t = [_]u8{0} ** 4;
+    var txt = TextBuffer.forTest("a\na\n", &t);
+    txt.cursor = Position{.x=0, .y=2};
+    try expect(txt.cursorIndex() == 4);
     var screen_content = [_]u8{0} ** 9000;
     const key = term.KeyCode{ .code = [_]u8{ 0x1b, 0x5b, 0x41, 0x00}, .len = 3};
-    txt = cursorUp(txt, &screen_content, key);
-    print("index: expect 2 but is {d}\n", .{txt.index});
-    try expect(txt.index == 2);
-
-    try expect(toXY(txt.content, txt.index).x == 0);
-    print("y: expect 2 but is {d}\n", .{toXY(txt.content, txt.index).y});
-    try expect(toXY(txt.content, txt.index).y == 2);
+    txt = cursorUp(txt, null, key);
+    try expect(txt.cursorIndex() == 2);
+    try expect(txt.cursor.x == 0);
+    try expect(txt.cursor.y == 1);
 }
-fn cursorUp(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
+fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    if (t.index > 0) {
-        if (positionOnScreen(toXY(t.content, t.index)).y == 1 and t.page_offset > 0) {
-            t.page_offset = oneLineUp(t, t.page_offset);
-            t.index = oneLineUp(t, t.index);
-            t.index = toLastX(t, t.index);
-            t.y_offset += 1;
+    var i = t.cursorIndex();
+    if (t.cursor.y > 0) {
+        if (positionOnScreen(t.cursor).y == 1 and t.page_y > 0) {
+            t = scrollDown(t);
             bufScreen(t, screen_content, key);
             return t;
         }
-        const index = oneLineUp(t, t.index);
-        if(index < t.index) {
-            t.index = toLastX(t, index);
+        t.cursor.y -= 1;
+        if(t.rowLength(t.cursor.y) - 1 < t.last_x) {
+            t.cursor.x = t.rowLength(t.cursor.y) - 1;
             bufScreen(t, screen_content, key);
-        }
-    }
-    return t;
-}
-fn oneLineDown(txt: TextBuffer, update_cursor: bool, screen_content: []u8, key: term.KeyCode) TextBuffer {
-    var t = txt;
-    t.page_offset = nextBreak(t, t.page_offset, 1);
-    if (update_cursor) {
-        t.index = nextBreak(t, t.index, 1);
-        t.index = toLastX(t, t.index);
-    }
-    t.y_offset -= 1;
-    bufScreen(t, screen_content, key);
-    return t;
-}
-fn cursorDown(txt: TextBuffer, screen_content: []u8, key: term.KeyCode) TextBuffer {
-    var t = txt;
-    if(t.index < t.length) {
-        if (positionOnScreen(toXY(t.content, t.index)).y == config.height - 2) {
-            t = oneLineDown(t, true, screen_content, key);
         } else {
-            const index = nextBreak(t, t.index, 1);
-            if (index == t.length and t.length > 0 and t.content[t.length - 1] == '\n') {
-                t.index = index;
-            } else if(index > t.index) {
-                t.index = toLastX(t, index);
-                const x = toXY(t.content, t.index).x;
-                if (x > t.last_x) t.last_x = x;
-            }
-            bufScreen(t, screen_content, key);
+            t.cursor.x = t.last_x;
         }
+    }
+    return t;
+}
+test "scrollUp" {
+    var t = [_]u8{0} ** 5;
+    var txt = TextBuffer.forTest("a\nb\nc", &t);
+    txt = scrollUp(txt);
+    try expect(txt.page_y == 1);
+}
+fn scrollUp(txt: TextBuffer) TextBuffer {
+    var t = txt;
+    t.page_y = 1;
+    return t;
+}
+
+fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
+    var t = txt;
+    var update = false;
+    if (t.cursor.y < t.rows()) {
+        t.cursor.y += 1;
+        const row_len = t.rowLength(t.cursor.y);
+        if (row_len == 0) {
+            t.cursor.x = 0;
+            update = true;
+        } else if(row_len - 1 < t.last_x) {
+            t.cursor.x = row_len - 1;
+            update = true;
+        } else {
+            t.cursor.x = t.last_x;
+        }
+
+        if (positionOnScreen(t.cursor).y == config.height - 2) {
+            t = scrollUp(t);
+            update = true;
+        }
+        if (update) bufScreen(t, screen_content, key);
     }
     return t;
 }
 
 const NOBR = "NoBufPrint";
-fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, index: usize) usize {
-    var i = bufStatusBarMode(screen_content, index);
+fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, screen_index: usize) usize {
+    var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(pos, screen_content, i);
     i = term.bufWrite("           ", screen_content, i);
     i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, screen_content, i);

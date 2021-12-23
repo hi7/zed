@@ -10,6 +10,31 @@
                 "kind": "build",
                 "isDefault": true
             }
-        }
+        },
+        {
+            "label": "test edit",
+            "type": "process",
+            "command": "zig",
+            "args": ["test", "libs/edit.zig", "-femit-bin=./test"],
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "label": "remove test",
+            "type": "shell",
+            "command": "rm test",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
     ]
 }

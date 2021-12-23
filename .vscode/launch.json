@@ -2,24 +2,69 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch",
+            "name": "Launch lldb test",
             "type": "lldb-vscode",
             "request": "launch",
-            "program": "./zig-out/bin/zed",
+            "program": "${workspaceRoot}/test",
+            "args": ["."],
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}",
+            "env": [],
+            "externalConsole": false,
+        },
+        {
+            "type": "lldb-mi",
+            "request": "launch",
+            "name": "Launch test",
+            "target": "test .",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
+        },
+        {
+            "name": "Debug test",
+            "type": "gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/test .",
+            "target": "test .",
+            "preLaunchTask": "test edit",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
+        },
+        {
+            "name": "gdb edit",
+            "type": "by-gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/test .",
+            "stopAtEntry": false,
+            "preLaunchTask": "test edit",
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+        },
+        {
+            "name": "zig test edit",
+            "type": "lldb-vscode",
+            "request": "launch",
+            "program": "${workspaceFolder}/test",
+            "args": ["prevent-panic-by-passing-a-placeholder-arg"],
+            "preLaunchTask": "",
+            "postDebugTask": "",
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "MIMode": "gdb",
+        },
+        {
+            "name": "debug zed",
+            "type": "lldb-vscode",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/zed",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
+            "console": "integratedTerminal",
             "preLaunchTask": "build",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        }
-    ]
+        },
+   ]
 }
