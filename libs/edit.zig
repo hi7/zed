@@ -201,8 +201,8 @@ pub const ControlKey = enum(u8) {
     }
 };
 
-pub fn loadFile(text: TextBuffer, filepath: []u8, allocator: Allocator) TextBuffer {
-    var t = text;
+pub fn loadFile(txt: TextBuffer, filepath: []u8, allocator: Allocator) TextBuffer {
+    var t = txt;
     t.filename = filepath;
     const file = std.fs.cwd().openFile(t.filename, .{ .read = true }) catch @panic("File open failed!");
     defer file.close();
@@ -210,13 +210,13 @@ pub fn loadFile(text: TextBuffer, filepath: []u8, allocator: Allocator) TextBuff
     // extent to multiple of chunk and add one chunk
     const expected_length = math.multipleOf(config.chunk, t.length) + config.chunk;
     t.content = allocator.alloc(u8, expected_length) catch @panic(OOM);
-    const bytes_read = file.readAll(text.content) catch @panic("File too large!");
+    const bytes_read = file.readAll(t.content) catch @panic("File too large!");
     assert(bytes_read == t.length);
     message = "";
     return t;
 }
-pub fn saveFile(text: TextBuffer, screen_content: []u8) !TextBuffer {
-    var t = text;
+pub fn saveFile(txt: TextBuffer, screen_content: []u8) !TextBuffer {
+    var t = txt;
     if (t.filename.len > 0) {
         const file = try std.fs.cwd().openFile(t.filename, .{ .write = true });
         defer file.close();
@@ -394,17 +394,17 @@ test "endOfPageIndex" {
     txt.content = literalToArray("a", &t);
     txt.length = 1;
     try expect(endOfPageIndex(txt) == 1);
-
 }
 inline fn endOfPageIndex(txt: TextBuffer) usize {
-    return txt.indexOfRowEnd(txt.page_y + config.height - 2);
+    return txt.indexOfRowEnd(txt.page_y + config.height - 1 - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT);
 }
 inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
     var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
-    i = term.bufCursor(Position{ .x = 0, .y = 1}, screen_content, i);
+    const sop = txt.indexOfRowStart(txt.page_y);
     const eop = endOfPageIndex(txt);
-    return term.bufClipWrite(txt.content[txt.indexOfRowStart(txt.page_y)..eop], screen_content, i, config.width);
+    i = term.bufCursor(Position{ .x = 0, .y = 1}, screen_content, i);
+    return term.bufClipWrite(txt.content[sop..eop], screen_content, i, config.width);
 }
 fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
