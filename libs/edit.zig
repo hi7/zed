@@ -377,8 +377,8 @@ pub var message: []const u8 = "READY.";
 inline fn bufStatusBar(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
-    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} page_y:{d} {s}{s} {s}", 
-        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.page_y, txt.filename, mod(txt), message}) catch @panic(OOM);
+    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
+        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.filename, mod(txt), message}) catch @panic(OOM);
     i += stats.len;
     const offset = config.width - keyCodeOffset;
     i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
