@@ -528,7 +528,6 @@ fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBu
         t.last_x = pos.x;
         if (pos.y == config.height - MENU_BAR_HEIGHT) {
             t = scrollUp(t);
-            message = "up";
         }
         bufScreen(t, screen_content, key);
     }
@@ -663,7 +662,6 @@ fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuf
 
         if (positionOnScreen(t.cursor, t.page_y).y == config.height - MENU_BAR_HEIGHT and t.page_y < t.rows()) {
             t = scrollUp(t);
-            message = "UP!";
         }
         bufScreen(t, screen_content, key);
     }
