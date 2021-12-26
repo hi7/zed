@@ -36,10 +36,13 @@ test "indexOfRowStart" {
 test "indexOf" {
     var t = [_]u8{0} ** 5;
     try expect(TextBuffer.forTest("", &t).indexOf(Position{.x=0, .y=0}) == 0);
+    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=2, .y=0}) == 1);
     try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=0, .y=0}) == 0);
     try expect(TextBuffer.forTest("ab", &t).indexOf(Position{.x=1, .y=0}) == 1);
     try expect(TextBuffer.forTest("a\n", &t).indexOf(Position{.x=1, .y=0}) == 1);
     try expect(TextBuffer.forTest("a\nb", &t).indexOf(Position{.x=0, .y=1}) == 2);
+    try expect(TextBuffer.forTest("a\n\nb", &t).indexOf(Position{.x=1, .y=2}) == 4);
     try expect(TextBuffer.forTest("a\nb\n", &t).indexOf(Position{.x=0, .y=2}) == 4);
     try expect(TextBuffer.forTest("a\n\nb", &t).indexOf(Position{.x=0, .y=2}) == 3);
     try expect(TextBuffer.forTest("a\nb\nc", &t).indexOf(Position{.x=0, .y=2}) == 4);
@@ -128,7 +131,6 @@ const TextBuffer = struct {
         if (pos.x > row_length) {
             return i + row_length;
         }
-        // TODO set last_x
         return i + pos.x;
     }
     fn cursorIndex(self: *TextBuffer) usize {
@@ -395,16 +397,19 @@ test "endOfPageIndex" {
     txt.length = 1;
     try expect(endOfPageIndex(txt) == 1);
 }
+inline fn textHeight() usize {
+    return config.height - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+}
 inline fn endOfPageIndex(txt: TextBuffer) usize {
-    return txt.indexOfRowEnd(txt.page_y + config.height - 1 - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT);
+    return txt.indexOfRowEnd(txt.page_y + textHeight() - 1);
 }
 inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
     var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
     const sop = txt.indexOfRowStart(txt.page_y);
     const eop = endOfPageIndex(txt);
-    i = term.bufCursor(Position{ .x = 0, .y = 1}, screen_content, i);
-    return term.bufClipWrite(txt.content[sop..eop], screen_content, i, config.width);
+    const page = txt.content[sop..eop];
+    return term.bufFillScreen(page, screen_content, i, config.width, textHeight());
 }
 fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
@@ -425,18 +430,18 @@ fn writeKeyCodes(txt: TextBuffer, screen_content: []u8, screen_index: usize, key
     term.write(screen_content[0..i]);
 }
 
-fn shiftLeft(txt: TextBuffer) TextBuffer {
+fn shiftLeft(txt: TextBuffer, pos: Position) TextBuffer {
     var t = txt;
-    var i = t.cursorIndex();
+    var i = t.indexOf(pos);
     while(i < t.length) : (i += 1) {
         t.content[i-1] = t.content[i];
     }
     return t;
 }
-fn shiftRight(txt: TextBuffer) TextBuffer {
+fn shiftRight(txt: TextBuffer, pos: Position) TextBuffer {
     var t = txt;
     var i = t.length;
-    var ci = t.cursorIndex();
+    var ci = t.indexOf(pos);
     while(i > ci) : (i -= 1) {
         t.content[i] = t.content[i-1];
     }
@@ -536,7 +541,7 @@ fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBu
 fn newLine(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
     var i = t.cursorIndex();
-    if (i < t.length) t = shiftRight(t);
+    if (i < t.length) t = shiftRight(t, t.cursor);
     t.content[i] = NEW_LINE;
     t.length += 1;
     t = cursorRight(t, screen_content, key);
@@ -563,11 +568,9 @@ test "writeChar" {
 }
 fn writeChar(char: u8, txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = extendBufferIfNeeded(txt, allocator);
-    // no difference to text buffer => change to propagate
     const i = t.cursorIndex();
-    if (t.length > 0 and char == t.content[i]) return t;
     
-    if (i < t.length) t = shiftRight(t);
+    if (i < t.length) t = shiftRight(t, t.cursor);
     t.content[i] = char;
     t.modified = true;
     t.length += 1;
@@ -577,10 +580,17 @@ fn writeChar(char: u8, txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode
 fn backspace(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
     if (t.cursorIndex() > 0) {
-        t = shiftLeft(t);
+        if (txt.cursor.x == 0) {
+            const pos = t.cursor;
+            t = cursorLeft(t, null, key);
+            t = shiftLeft(t, pos);
+        } else {
+            t = shiftLeft(t, t.cursor);
+            t = cursorLeft(t, null, key);
+        }
         t.modified = true;
         t.length -= 1;
-        t = cursorLeft(t, screen_content, key);
+        bufScreen(t, screen_content, key);
     }
     return t;
 }
@@ -654,6 +664,8 @@ fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuf
         const row_len = t.rowLength(t.cursor.y);
         if (row_len == 0) {
             t.cursor.x = 0;
+        } else if (t.indexOf(Position{.x=t.last_x, .y=t.cursor.y}) == t.length) {
+            t.cursor.x = row_len;
         } else if(row_len - 1 < t.last_x) {
             t.cursor.x = row_len - 1;
         } else {

@@ -38,15 +38,18 @@ pub fn bufWrite(data: []const u8, buf: []u8, index: usize) usize {
     }
     return bi;
 }
-pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize) usize {
+pub fn bufFillScreen(data: []const u8, buf: []u8, index: usize, width: usize, height: usize) usize {
     var di: usize = 0;
     var bi: usize = index;
     var x: usize = 0;
+    var y: usize = 0;
     var clear = false;
-    assert(buf.len > bi + max_width);
-    while(di < data.len) {
-        if (x < max_width) {
-            if (data[di] == '\n') clear = true;
+    assert(buf.len > bi + width);
+    while (di < data.len) {
+        if (x < width) {
+            if (data[di] == '\n') {
+                clear = true;
+            }
             if (clear) {
                 buf[bi] = ' ';
             } else {
@@ -56,6 +59,7 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
             bi += 1;
             x += 1;
         } else {
+            y += 1;
             if(clear or data[di] == '\n') {
                 clear = false;
                 x = 0;
@@ -63,9 +67,16 @@ pub fn bufClipWrite(data: []const u8, buf: []u8, index: usize, max_width: usize)
             di += 1;
         }
     }
-    assert(buf.len > bi + max_width - x);
+    while (y < height) : (y+=1) {
+        while (x < width) : (x+=1) {
+            buf[bi] = ' ';
+            bi+=1;
+        }
+        x = 0;
+    }
+    assert(buf.len > bi + width - x);
     // clear tail of last line
-    while (x < max_width) {
+    while (x < width) {
         buf[bi] = ' ';
         bi += 1;
         x += 1;
