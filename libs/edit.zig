@@ -7,7 +7,6 @@ const print = std.debug.print;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const Allocator = *std.mem.Allocator;
-const Mode = term.Mode;
 const Color = term.Color;
 const Scope = term.Scope;
 const Position = term.Position;
@@ -20,6 +19,10 @@ const STATUS_BAR_HEIGHT = 1;
 const OOM = "Out of memory error";
 
 const keyCodeOffset = 21;
+
+pub const Mode = enum { edit, help };
+var old_modus: Mode = undefined;
+var modus: Mode = .edit;
 
 test "indexOfRowStart" {
     var t = [_]u8{0} ** 5;
@@ -219,7 +222,7 @@ pub fn loadFile(txt: TextBuffer, filepath: []u8, allocator: Allocator) TextBuffe
 }
 pub fn saveFile(txt: TextBuffer, screen_content: []u8) !TextBuffer {
     var t = txt;
-    if (t.filename.len > 0) {
+    if (modus == .edit and t.filename.len > 0) {
         const file = try std.fs.cwd().openFile(t.filename, .{ .write = true });
         defer file.close();
         _ = try file.write(t.content[0..t.length]);
@@ -263,8 +266,20 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     term.write(term.CURSOR_HOME);
 }
 
+inline fn setModus(mode: Mode, txt: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
+    if (modus != mode) {
+        old_modus = modus;
+        modus = mode;
+    } else {
+        modus = old_modus;
+        old_modus = mode;
+    }
+    bufScreen(txt, screen_content, key);
+}
+
 pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = text;
+    var i: usize = 0;
     if (key.len == 1) {
         const c = key.code[0];
         if (c == 0x0d) { // new line
@@ -284,8 +299,8 @@ pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, all
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) t = cursorDown(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) t = cursorRight(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) t = cursorLeft(t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) setModus(.help, t, screen_content, key);
     }
-    writeKeyCodes(t, screen_content, 0, key);
     return t;
 }
 
@@ -293,14 +308,14 @@ var themeColor = Color.red;
 var themeHighlight = Color.white;
 fn bufMenuBarMode(screen_content: []u8, screen_index: usize) usize {
     var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
-    return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, screen_content, i);
+    return term.bufAttributeMode(term.Mode.reverse, Scope.foreground, themeColor, screen_content, i);
 }
 fn bufMenuBarHighlightMode(screen_content: []u8, screen_index: usize) usize {
     return term.bufAttribute(Scope.background, themeHighlight, screen_content, screen_index);
 }
 fn bufStatusBarMode(screen_content: []u8, screen_index: usize) usize {
     var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
-    return term.bufAttributeMode(Mode.reverse, Scope.foreground, themeColor, screen_content, i);
+    return term.bufAttributeMode(term.Mode.reverse, Scope.foreground, themeColor, screen_content, i);
 }
 fn repeatChar(char: u8, count: u16) void {
     var i: u8 = 0;
@@ -316,36 +331,27 @@ fn showMessage(message: []const u8, allocator: Allocator) void {
     term.resetMode();
 }
 
-fn bufShortCut(key: u8, name: []const u8, screen_content: []u8, screen_index: usize) usize {
+fn bufShortCut(key: []const u8, label: []const u8, screen_content: []u8, screen_index: usize) usize {
     var i = bufMenuBarHighlightMode(screen_content, screen_index);
-    i = term.bufWriteByte(key, screen_content, i);
+    i = term.bufWrite(key, screen_content, i);
     i = bufMenuBarMode(screen_content, i);
-    return term.bufWrite(name, screen_content, i);
-}
-fn shortCut(key: u8, name: []const u8, allocator: Allocator) void {
-    setMenuBarHighlightMode(allocator);
-    term.writeByte(key);
-    setMenuBarMode(allocator);
-    term.write(name);
+    return term.bufWrite(label, screen_content, i);
 }
 inline fn bufMenuBar(screen_content: []u8, screen_index: usize) usize {
     var i = bufMenuBarMode(screen_content, screen_index);
     i = term.bufWrite(term.CURSOR_HOME, screen_content, i);
-    i = term.bufWriteRepeat(' ', config.width - 25, screen_content, i);
+    if (modus == .edit) {
+        i = bufShortCut("F1", " Help", screen_content, i);
+    }
+    if (modus == .help) {
+        i = bufShortCut("F1", " back", screen_content, i);
+    }
+    i = term.bufWriteRepeat(' ', config.width - 7 - 25, screen_content, i);
 
-    i = bufShortCut('S', "ave: Ctrl-s ", screen_content, i);
-    i = bufShortCut('Q', "uit: Ctrl-q", screen_content, i);
+
+    i = bufShortCut("S", "ave: Ctrl-s ", screen_content, i);
+    i = bufShortCut("Q", "uit: Ctrl-q", screen_content, i);
     return i;
-}
-inline fn menuBar(allocator: Allocator) void {
-    setMenuBarMode(allocator);
-    term.write(term.CURSOR_HOME);
-    repeatChar(' ', config.width);
-
-    term.setCursor(Position{ .x = config.width - 26, .y = 0}, allocator);
-    shortCut('S', "ave: Ctrl-s", allocator);
-    term.setCursor(Position{ .x = config.width - 13, .y = 0}, allocator);
-    shortCut('Q', "uit: Ctrl-q", allocator);
 }
 fn fileColor(changed: bool) Color {
     return if(changed) Color.yellow else Color.white;
@@ -405,16 +411,28 @@ inline fn endOfPageIndex(txt: TextBuffer) usize {
 }
 inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
-    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
+    var i = term.bufWrite(term.CURSOR_SHOW, screen_content, screen_index);
+    i = term.bufWrite(term.RESET_MODE, screen_content, i);
     const sop = txt.indexOfRowStart(txt.page_y);
     const eop = endOfPageIndex(txt);
     const page = txt.content[sop..eop];
     return term.bufFillScreen(page, screen_content, i, config.width, textHeight());
 }
+inline fn bufHelp(help: []const u8, screen_content: []u8, screen_index: usize) usize {
+    assert(screen_content.len > screen_index);
+    var i = term.bufWrite(term.CURSOR_HIDE, screen_content, screen_index);
+    i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, term.Color.yellow, screen_content, i);
+    return term.bufFillScreen(help, screen_content, i, config.width, textHeight());
+}
 fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
         var i = bufMenuBar(screen_content.?, 0);
-        i = bufText(txt, screen_content.?, i);
+        if (modus == .edit) {
+            i = bufText(txt, screen_content.?, i);
+        }
+        if (modus == .help) {
+            i = bufHelp(config.help[0..], screen_content.?, i);
+        }
         i = bufStatusBar(txt, screen_content.?, i);
         writeKeyCodes(txt, screen_content.?, i, key);
     }
@@ -471,24 +489,27 @@ fn extendBufferIfNeeded(txt: TextBuffer, allocator: Allocator) TextBuffer {
 
 fn cursorLeft(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    var update = false;
-    if (t.cursor.x > 0) {
-        t.cursor.x -= 1;
-        t.last_x = t.cursor.x;
-        update = true;
-    } else {
-        if (t.cursor.y > 0) {
-            t.cursor.x = t.rowLength(t.cursor.y - 1) - 1;
-            t.cursor.y -= 1;
-            if (t.page_y > 0 and positionOnScreen(t.cursor, t.page_y).y == 0) {
-                t = scrollDown(t);
-            }
+    if (modus == .edit) {
+        var update = false;
+        if (t.cursor.x > 0) {
+            t.cursor.x -= 1;
+            t.last_x = t.cursor.x;
             update = true;
+        } else {
+            if (t.cursor.y > 0) {
+                t.cursor.x = t.rowLength(t.cursor.y - 1) - 1;
+                t.cursor.y -= 1;
+                if (t.page_y > 0 and positionOnScreen(t.cursor, t.page_y).y == 0) {
+                    t = scrollDown(t);
+                }
+                update = true;
+            }
         }
-    }
-    if (update) {
-        t.last_x = t.cursor.x;
-        bufScreen(t, screen_content, key);
+        if (update) {
+            t.last_x = t.cursor.x;
+            bufScreen(t, screen_content, key);
+        }
+
     }
     return t;
 }
@@ -522,31 +543,36 @@ fn cursorRight(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBu
     if (txt.length == 0) return txt;
 
     var t = txt;
-    if (t.cursor.x < t.rowLength(t.cursor.y)) {
-        if (t.content[t.cursorIndex()] == NEW_LINE) {
-            t.cursor.x = 0;
-            t.cursor.y += 1;
-        } else {
-            t.cursor.x += 1;
+    if (modus == .edit) {
+        if (t.cursor.x < t.rowLength(t.cursor.y)) {
+            if (t.content[t.cursorIndex()] == NEW_LINE) {
+                t.cursor.x = 0;
+                t.cursor.y += 1;
+            } else {
+                t.cursor.x += 1;
+            }
+            const pos = positionOnScreen(t.cursor, t.page_y);
+            t.last_x = pos.x;
+            if (pos.y == config.height - MENU_BAR_HEIGHT) {
+                t = scrollUp(t);
+            }
+            bufScreen(t, screen_content, key);
         }
-        const pos = positionOnScreen(t.cursor, t.page_y);
-        t.last_x = pos.x;
-        if (pos.y == config.height - MENU_BAR_HEIGHT) {
-            t = scrollUp(t);
-        }
-        bufScreen(t, screen_content, key);
     }
     return t;
 }
 fn newLine(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
-    var t = extendBufferIfNeeded(txt, allocator);
-    var i = t.cursorIndex();
-    if (i < t.length) t = shiftRight(t, t.cursor);
-    t.content[i] = NEW_LINE;
-    t.length += 1;
-    t = cursorRight(t, screen_content, key);
-    t.modified = true;
-    bufScreen(t, screen_content, key);
+    var t = txt;
+    if (modus == .edit) {
+        t = extendBufferIfNeeded(t, allocator);
+        var i = t.cursorIndex();
+        if (i < t.length) t = shiftRight(t, t.cursor);
+        t.content[i] = NEW_LINE;
+        t.length += 1;
+        t = cursorRight(t, screen_content, key);
+        t.modified = true;
+        bufScreen(t, screen_content, key);
+    }
     return t;
 }
 test "writeChar" {
@@ -567,30 +593,35 @@ test "writeChar" {
     try expect(txt.content[1] == 'b');
 }
 fn writeChar(char: u8, txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
-    var t = extendBufferIfNeeded(txt, allocator);
-    const i = t.cursorIndex();
-    
-    if (i < t.length) t = shiftRight(t, t.cursor);
-    t.content[i] = char;
-    t.modified = true;
-    t.length += 1;
-    t = cursorRight(t, screen_content, key);
+    var t = txt;
+    if (modus == .edit) {
+        t = extendBufferIfNeeded(t, allocator);
+        const i = t.cursorIndex();
+        
+        if (i < t.length) t = shiftRight(t, t.cursor);
+        t.content[i] = char;
+        t.modified = true;
+        t.length += 1;
+        t = cursorRight(t, screen_content, key);
+    }
     return t;
 }
 fn backspace(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    if (t.cursorIndex() > 0) {
-        if (txt.cursor.x == 0) {
-            const pos = t.cursor;
-            t = cursorLeft(t, null, key);
-            t = shiftLeft(t, pos);
-        } else {
-            t = shiftLeft(t, t.cursor);
-            t = cursorLeft(t, null, key);
+    if (modus == .edit) {
+        if (t.cursorIndex() > 0) {
+            if (txt.cursor.x == 0) {
+                const pos = t.cursor;
+                t = cursorLeft(t, null, key);
+                t = shiftLeft(t, pos);
+            } else {
+                t = shiftLeft(t, t.cursor);
+                t = cursorLeft(t, null, key);
+            }
+            t.modified = true;
+            t.length -= 1;
+            bufScreen(t, screen_content, key);
         }
-        t.modified = true;
-        t.length -= 1;
-        bufScreen(t, screen_content, key);
     }
     return t;
 }
@@ -641,41 +672,45 @@ test "cursorUp" {
 }
 fn cursorUp(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    var i = t.cursorIndex();
-    if (t.cursor.y > 0) {
-        if (positionOnScreen(t.cursor, t.page_y).y == MENU_BAR_HEIGHT and t.page_y > 0) {
-            t = scrollDown(t);
+    if (modus == .edit) {
+        var i = t.cursorIndex();
+        if (t.cursor.y > 0) {
+            if (positionOnScreen(t.cursor, t.page_y).y == MENU_BAR_HEIGHT and t.page_y > 0) {
+                t = scrollDown(t);
+            }
+            t.cursor.y -= 1;
+            if(t.rowLength(t.cursor.y) - 1 < t.last_x) {
+                t.cursor.x = t.rowLength(t.cursor.y) - 1;
+            } else {
+                t.cursor.x = t.last_x;
+            }
+            bufScreen(t, screen_content, key);
         }
-        t.cursor.y -= 1;
-        if(t.rowLength(t.cursor.y) - 1 < t.last_x) {
-            t.cursor.x = t.rowLength(t.cursor.y) - 1;
-        } else {
-            t.cursor.x = t.last_x;
-        }
-        bufScreen(t, screen_content, key);
     }
     return t;
 }
 
 fn cursorDown(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) TextBuffer {
     var t = txt;
-    if (t.cursor.y < t.rows()) {
-        t.cursor.y += 1;
-        const row_len = t.rowLength(t.cursor.y);
-        if (row_len == 0) {
-            t.cursor.x = 0;
-        } else if (t.indexOf(Position{.x=t.last_x, .y=t.cursor.y}) == t.length) {
-            t.cursor.x = row_len;
-        } else if(row_len - 1 < t.last_x) {
-            t.cursor.x = row_len - 1;
-        } else {
-            t.cursor.x = t.last_x;
-        }
+    if (modus == .edit) {
+        if (t.cursor.y < t.rows()) {
+            t.cursor.y += 1;
+            const row_len = t.rowLength(t.cursor.y);
+            if (row_len == 0) {
+                t.cursor.x = 0;
+            } else if (t.indexOf(Position{.x=t.last_x, .y=t.cursor.y}) == t.length) {
+                t.cursor.x = row_len;
+            } else if(row_len - 1 < t.last_x) {
+                t.cursor.x = row_len - 1;
+            } else {
+                t.cursor.x = t.last_x;
+            }
 
-        if (positionOnScreen(t.cursor, t.page_y).y == config.height - MENU_BAR_HEIGHT and t.page_y < t.rows()) {
-            t = scrollUp(t);
+            if (positionOnScreen(t.cursor, t.page_y).y == config.height - MENU_BAR_HEIGHT and t.page_y < t.rows()) {
+                t = scrollUp(t);
+            }
+            bufScreen(t, screen_content, key);
         }
-        bufScreen(t, screen_content, key);
     }
     return t;
 }
@@ -685,7 +720,7 @@ fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, screen_in
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(pos, screen_content, i);
     i = term.bufWrite("           ", screen_content, i);
-    i = term.bufAttributesMode(Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, screen_content, i);
+    i = term.bufAttributesMode(term.Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, screen_content, i);
     i = term.bufCursor(pos, screen_content, i);
     if(key.len == 0) {
         return i;

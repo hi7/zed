@@ -15,7 +15,15 @@ pub const ESC: u8 = '\x1B';
 pub const SEQ: u8 = '[';
 pub const CLEAR_SCREEN = "\x1b[2J";
 pub const CURSOR_HOME = "\x1b[H";
+pub const CURSOR_HIDE = "\x1b[?25l";
+pub const CURSOR_SHOW = "\x1b[?25h";
 pub const RESET_MODE = "\x1b[0m";
+pub const BRIGHT_MODE = "\x1b[1m";
+pub const DIM_MODE = "x1b[2m";
+pub const UNDERSCORE_MODE = "x1b[4m";
+pub const BLINK_MODE = "x1b[5m";
+pub const REVERSE_MODE = "x1b[7m";
+pub const HIDDEN_MODE = "x1b[8m";
 pub const RESET_WRAP_MODE = "\x1b[?7l";
 
 // Errors
@@ -45,7 +53,7 @@ pub fn bufFillScreen(data: []const u8, buf: []u8, index: usize, width: usize, he
     var y: usize = 0;
     var clear = false;
     assert(buf.len > bi + width);
-    while (di < data.len) {
+    while (di < data.len and y < height) {
         if (x < width) {
             if (data[di] == '\n') {
                 clear = true;

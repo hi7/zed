@@ -17,6 +17,7 @@ var config: []const u8 = "";
 var current_filename: []const u8 = undefined;
 
 pub const chunk = 4096;
+pub const help = template.HELP;
 pub var width: u16 = 80;
 pub var height: u16 = 25;
 

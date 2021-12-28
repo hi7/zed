@@ -4,23 +4,24 @@ pub const CONFIG =
     \\#####################
     \\#  ZED CONFIG FILE  #
     \\#####################
-    \\* EXTERN
-    \\zig.home = ~/tools/zig-macos-x86_64-0.8.1/
+    \\* VAR
+    \\$zig.home: ~/tools/zig-macos-x86_64-0.8.1/
     \\
     \\* KEY BINDING
-    \\# key = action
-    \\F1 = @help
-    \\C-q = @quit
-    \\C-s = @save
+    \\# key: action
+    \\F1: @help
+    \\C-q: @quit
+    \\C-s: @save
     \\
     \\* KEY CODES
-    \\# key codes = key name
-    \\1b 0a de = F12
+    \\# key name: codes
+    \\F1:  1b 4f 50
+    \\F12: 1b 0a de
     \\
     \\* ACTIONS
-    \\# name = command
-    \\build = $zig.home/zig build
-    \\pull = git pull
+    \\# name: command
+    \\build: $zig.home/zig build
+    \\pull: git pull
     \\
     \\* BUILTIN
     \\# defined builtin functions
