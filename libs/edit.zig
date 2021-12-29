@@ -287,7 +287,7 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     files.free(allocator);
 }
 
-inline fn setModus(mode: Mode) void {
+inline fn toggleModus(mode: Mode) void {
     if (modus != mode) {
         old_modus = modus;
         modus = mode;
@@ -328,8 +328,9 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCo
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) 
             cursorLeft(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) {
-            setModus(.conf);
-            bufScreen(getCurrentText(text, cnf), screen_content, key);
+            toggleModus(.conf);
+            t = getCurrentText(text, cnf);
+            bufScreen(t, screen_content, key);
         }
     }
     if (key.len > 0) {
@@ -397,15 +398,15 @@ inline fn positionOnScreen(pos: Position, page_y: usize) Position {
         .y = MENU_BAR_HEIGHT + pos.y - page_y,
     };
 }
-fn bufTextCursor(pos: Position, page_y: usize, screen_content: []u8, screen_index: usize) usize {
-    var screen_pos = positionOnScreen(pos, page_y);
+fn bufTextCursor(txt: *Text, screen_content: []u8, screen_index: usize) usize {
+    var screen_pos = positionOnScreen(txt.cursor, txt.page_y);
     if (screen_pos.x >= config.width) {
         screen_pos.x = config.width - 1;
     }
     return term.bufCursor(screen_pos, screen_content, screen_index);
 }
 fn bufCursor(txt: *Text, screen_content: []u8, screen_index: usize) usize {
-    return bufTextCursor(txt.cursor, txt.page_y, screen_content, screen_index);
+    return bufTextCursor(txt, screen_content, screen_index);
 }
 fn setTextCursor(pos: Position, page_y: usize, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos, page_y), allocator);
@@ -473,7 +474,7 @@ fn writeKeyCodes(txt: *Text, screen_content: []u8, screen_index: usize, key: ter
         .x = config.width - keyCodeOffset + 10, 
         .y = config.height - 1}, 
         screen_content, screen_index);
-    i = bufTextCursor(txt.cursor, txt.page_y, screen_content, i);
+    i = bufTextCursor(txt, screen_content, i);
     term.write(screen_content[0..i]);
 }
 
@@ -704,7 +705,7 @@ fn cursorDown(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     }
 }
 
-const NOBR = "NoBufPrint";
+const NOBR = "Failed: bufPrint";
 fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, screen_index: usize) usize {
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(pos, screen_content, i);
