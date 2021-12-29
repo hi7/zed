@@ -20,7 +20,7 @@ const OOM = "Out of memory error";
 
 const keyCodeOffset = 21;
 
-pub const Mode = enum { edit, help };
+pub const Mode = enum { edit, conf };
 var old_modus: Mode = undefined;
 var modus: Mode = .edit;
 
@@ -299,23 +299,27 @@ pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, all
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) t = cursorDown(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) t = cursorRight(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) t = cursorLeft(t, screen_content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) setModus(.help, t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) setModus(.conf, t, screen_content, key);
+    }
+    if (key.len > 0) {
+        writeKeyCodes(t, screen_content, 0, key);
     }
     return t;
 }
 
-var themeColor = Color.red;
+var themeForegroundColor = Color.cyan;
+var themeBackgroundColor = Color.blue;
 var themeHighlight = Color.white;
 fn bufMenuBarMode(screen_content: []u8, screen_index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
-    return term.bufAttributeMode(term.Mode.reverse, Scope.foreground, themeColor, screen_content, i);
+    return term.bufAttributes(Scope.foreground, themeForegroundColor, 
+        Scope.background, themeBackgroundColor, screen_content, screen_index);
 }
 fn bufMenuBarHighlightMode(screen_content: []u8, screen_index: usize) usize {
-    return term.bufAttribute(Scope.background, themeHighlight, screen_content, screen_index);
+    return term.bufAttributes(Scope.foreground, themeHighlight, Scope.background, themeBackgroundColor, screen_content, screen_index);
 }
 fn bufStatusBarMode(screen_content: []u8, screen_index: usize) usize {
-    var i = term.bufWrite(term.RESET_MODE, screen_content, screen_index);
-    return term.bufAttributeMode(term.Mode.reverse, Scope.foreground, themeColor, screen_content, i);
+    return term.bufAttributes(Scope.foreground, themeHighlight, 
+        Scope.background, themeBackgroundColor, screen_content, screen_index);
 }
 fn repeatChar(char: u8, count: u16) void {
     var i: u8 = 0;
@@ -338,15 +342,15 @@ fn bufShortCut(key: []const u8, label: []const u8, screen_content: []u8, screen_
     return term.bufWrite(label, screen_content, i);
 }
 inline fn bufMenuBar(screen_content: []u8, screen_index: usize) usize {
-    var i = bufMenuBarMode(screen_content, screen_index);
-    i = term.bufWrite(term.CURSOR_HOME, screen_content, i);
+    var i = term.bufWrite(term.CURSOR_HOME, screen_content, screen_index);
     if (modus == .edit) {
-        i = bufShortCut("F1", " Help", screen_content, i);
+        i = bufShortCut("F1", " Config ", screen_content, i);
     }
-    if (modus == .help) {
-        i = bufShortCut("F1", " back", screen_content, i);
+    if (modus == .conf) {
+        i = bufShortCut("F1", " go back", screen_content, i);
     }
-    i = term.bufWriteRepeat(' ', config.width - 7 - 25, screen_content, i);
+    i = bufMenuBarMode(screen_content, i);
+    i = term.bufWriteRepeat(' ', config.width - 10 - 25, screen_content, i);
 
 
     i = bufShortCut("S", "ave: Ctrl-s ", screen_content, i);
@@ -418,11 +422,11 @@ inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) us
     const page = txt.content[sop..eop];
     return term.bufFillScreen(page, screen_content, i, config.width, textHeight());
 }
-inline fn bufHelp(help: []const u8, screen_content: []u8, screen_index: usize) usize {
+inline fn bufConf(conf: []const u8, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
     var i = term.bufWrite(term.CURSOR_HIDE, screen_content, screen_index);
-    i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, term.Color.yellow, screen_content, i);
-    return term.bufFillScreen(help, screen_content, i, config.width, textHeight());
+    i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForegroundColor, screen_content, i);
+    return term.bufFillScreen(conf, screen_content, i, config.width, textHeight());
 }
 fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
@@ -430,8 +434,8 @@ fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
         if (modus == .edit) {
             i = bufText(txt, screen_content.?, i);
         }
-        if (modus == .help) {
-            i = bufHelp(config.help[0..], screen_content.?, i);
+        if (modus == .conf) {
+            i = bufConf(config.templ[0..], screen_content.?, i);
         }
         i = bufStatusBar(txt, screen_content.?, i);
         writeKeyCodes(txt, screen_content.?, i, key);
@@ -720,7 +724,7 @@ fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, screen_in
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(pos, screen_content, i);
     i = term.bufWrite("           ", screen_content, i);
-    i = term.bufAttributesMode(term.Mode.reverse, Scope.foreground, themeColor, Scope.background, Color.white, screen_content, i);
+    i = term.bufAttribute(Scope.foreground, themeForegroundColor, screen_content, i);
     i = term.bufCursor(pos, screen_content, i);
     if(key.len == 0) {
         return i;
