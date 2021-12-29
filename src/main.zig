@@ -13,6 +13,5 @@ pub fn main() anyerror!void {
     const args = try std.process.argsAlloc(gpa);
     defer gpa.free(args);
 
-    config.load(gpa);
     try edit.loop(if (args.len > 1) args[1] else null, gpa);
 }

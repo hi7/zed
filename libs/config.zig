@@ -7,13 +7,13 @@ const Allocator = *std.mem.Allocator;
 const File = fs.File;
 const FileNotFound = File.OpenError.FileNotFound;
 
-const APPNAME = "zed";
-const FILENAME = ".zed";
+pub const APPNAME = "zed";
+pub const FILENAME = "config.txt";
 // Errors
 const GADD = "fs.getAppDataDir() error";
 const OOM = "Out of memory error";
 
-var config: []const u8 = "";
+var data: []u8 = "";
 var current_filename: []const u8 = undefined;
 
 pub const chunk = 4096;
@@ -23,7 +23,7 @@ pub var height: u16 = 25;
 
 pub fn load(allocator: Allocator) void {
     current_filename = FILENAME;
-    config = files.storeFile(FILENAME, allocator) catch loadFromHome(allocator);
+    data = files.readFile(FILENAME, allocator) catch loadFromHome(allocator);
 }
 fn loadFromHome(allocator: Allocator) []const u8 {
     const home = fs.getAppDataDir(allocator, APPNAME) catch @panic(GADD);
@@ -32,8 +32,7 @@ fn loadFromHome(allocator: Allocator) []const u8 {
     const path = mem.concat(allocator, u8, &segments) catch @panic(OOM);
     defer allocator.free(path);
     current_filename = path;
-    return files.storeFile(path, allocator) catch {
-        current_filename = undefined;
+    return files.readFile(path, allocator) catch {
         return template.CONFIG;
     };
 }

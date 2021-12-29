@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = @import("math.zig");
+const files = @import("files.zig");
 const config = @import("config.zig");
 const term = @import("term.zig");
 const mem = std.mem;
@@ -23,6 +24,7 @@ const keyCodeOffset = 21;
 pub const Mode = enum { edit, conf };
 var old_modus: Mode = undefined;
 var modus: Mode = .edit;
+var current_text: TextBuffer = undefined;
 
 test "indexOfRowStart" {
     var t = [_]u8{0} ** 5;
@@ -73,7 +75,7 @@ const TextBuffer = struct {
     content: []u8,
     length: usize,
     cursor: Position,
-    filename: []u8,
+    filename: []const u8,
     modified: bool,
     last_x: usize,
     page_y: usize,
@@ -206,7 +208,7 @@ pub const ControlKey = enum(u8) {
     }
 };
 
-pub fn loadFile(txt: TextBuffer, filepath: []u8, allocator: Allocator) TextBuffer {
+pub fn loadFile(txt: TextBuffer, filepath: []const u8, allocator: Allocator) TextBuffer {
     var t = txt;
     t.filename = filepath;
     const file = std.fs.cwd().openFile(t.filename, .{ .read = true }) catch @panic("File open failed!");
@@ -238,8 +240,8 @@ pub fn saveFile(txt: TextBuffer, screen_content: []u8) !TextBuffer {
 }
 pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     var text = TextBuffer.new("", 0);
+    var conf = TextBuffer.new("", 0);
     var screen = ScreenBuffer.new();
-
     _ = term.updateWindowSize();
     if(filepath != null) text = loadFile(text, filepath.?, allocator);
     defer allocator.free(text.content);
@@ -250,23 +252,45 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     term.rawMode(5);
     term.write(term.CLEAR_SCREEN);
 
+    const home_config_file = files.homeFilePath(allocator);
+    if(files.exists(home_config_file)) {
+        conf = loadFile(conf, home_config_file, allocator);
+    } else {
+        if (!files.exists(files.home_path)) {
+            message = "DIR";
+            std.fs.makeDirAbsolute(files.home_path) catch @panic("Failed: makeDirAbsolute");
+        }
+
+        const cf = std.fs.createFileAbsolute(home_config_file, .{}) catch @panic("Failed: createFileAbsolute");
+        cf.close();
+        conf.filename = home_config_file;
+        conf.content = allocator.alloc(u8, config.templ.len) catch @panic(OOM);
+        conf.content = literalToArray(config.templ, conf.content);
+        conf.length = config.templ.len;
+        conf = saveFile(conf, screen.content) catch @panic("failed: save file");
+    }
+
     var key: term.KeyCode = undefined;
-    bufScreen(text, screen.content, key);
+    current_text = text;
+    bufScreen(current_text, screen.content, key);
     while(key.code[0] != term.ctrlKey('q')) {
         key = term.readKey();
         if(key.len > 0) {
-            text = processKey(text, screen.content, key, allocator);
+            text = processKey(text, conf, screen.content, key, allocator);
         }
-        if (term.updateWindowSize()) bufScreen(text, screen.content, key);
+        if (term.updateWindowSize()) bufScreen(current_text, screen.content, key);
     }
 
     term.write(term.RESET_MODE);
     term.cookedMode();
     term.write(term.CLEAR_SCREEN);
     term.write(term.CURSOR_HOME);
+
+    allocator.free(conf.content);
+    files.free(allocator);
 }
 
-inline fn setModus(mode: Mode, txt: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
+inline fn setModus(mode: Mode, txt: TextBuffer, cnf: TextBuffer, screen_content: []u8, key: term.KeyCode) void {
     if (modus != mode) {
         old_modus = modus;
         modus = mode;
@@ -274,10 +298,12 @@ inline fn setModus(mode: Mode, txt: TextBuffer, screen_content: []u8, key: term.
         modus = old_modus;
         old_modus = mode;
     }
-    bufScreen(txt, screen_content, key);
+    if (modus == .edit) current_text = txt;
+    if (modus == .conf) current_text = cnf;
+    bufScreen(current_text, screen_content, key);
 }
 
-pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
+pub fn processKey(text: TextBuffer, cnf: TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) TextBuffer {
     var t = text;
     var i: usize = 0;
     if (key.len == 1) {
@@ -299,7 +325,7 @@ pub fn processKey(text: TextBuffer, screen_content: []u8, key: term.KeyCode, all
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) t = cursorDown(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) t = cursorRight(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) t = cursorLeft(t, screen_content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) setModus(.conf, t, screen_content, key);
+        if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) setModus(.conf, t, cnf, screen_content, key);
     }
     if (key.len > 0) {
         writeKeyCodes(t, screen_content, 0, key);
@@ -424,19 +450,14 @@ inline fn bufText(txt: TextBuffer, screen_content: []u8, screen_index: usize) us
 }
 inline fn bufConf(conf: []const u8, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
-    var i = term.bufWrite(term.CURSOR_HIDE, screen_content, screen_index);
-    i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForegroundColor, screen_content, i);
+    // var i = term.bufWrite(term.CURSOR_HIDE, screen_content, screen_index);
+    var i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForegroundColor, screen_content, screen_index);
     return term.bufFillScreen(conf, screen_content, i, config.width, textHeight());
 }
 fn bufScreen(txt: TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
         var i = bufMenuBar(screen_content.?, 0);
-        if (modus == .edit) {
-            i = bufText(txt, screen_content.?, i);
-        }
-        if (modus == .conf) {
-            i = bufConf(config.templ[0..], screen_content.?, i);
-        }
+        i = bufText(txt, screen_content.?, i);
         i = bufStatusBar(txt, screen_content.?, i);
         writeKeyCodes(txt, screen_content.?, i, key);
     }
