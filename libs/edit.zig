@@ -27,50 +27,50 @@ var modus: Mode = .edit;
 
 test "indexOfRowStart" {
     var t = [_]u8{0} ** 5;
-    try expect(TextBuffer.forTest("", &t).indexOfRowStart(0) == 0);
-    try expect(TextBuffer.forTest("", &t).indexOfRowStart(1) == 0);
-    try expect(TextBuffer.forTest("a", &t).indexOfRowStart(0) == 0);
-    try expect(TextBuffer.forTest("\n", &t).indexOfRowStart(0) == 0);
-    try expect(TextBuffer.forTest("\n", &t).indexOfRowStart(1) == 1);
-    try expect(TextBuffer.forTest("\n\n", &t).indexOfRowStart(1) == 1);
-    try expect(TextBuffer.forTest("a\n", &t).indexOfRowStart(1) == 2);
-    try expect(TextBuffer.forTest("a\na", &t).indexOfRowStart(1) == 2);
-    try expect(TextBuffer.forTest("a\n\na", &t).indexOfRowStart(2) == 3);
+    try expect(Text.forTest("", &t).indexOfRowStart(0) == 0);
+    try expect(Text.forTest("", &t).indexOfRowStart(1) == 0);
+    try expect(Text.forTest("a", &t).indexOfRowStart(0) == 0);
+    try expect(Text.forTest("\n", &t).indexOfRowStart(0) == 0);
+    try expect(Text.forTest("\n", &t).indexOfRowStart(1) == 1);
+    try expect(Text.forTest("\n\n", &t).indexOfRowStart(1) == 1);
+    try expect(Text.forTest("a\n", &t).indexOfRowStart(1) == 2);
+    try expect(Text.forTest("a\na", &t).indexOfRowStart(1) == 2);
+    try expect(Text.forTest("a\n\na", &t).indexOfRowStart(2) == 3);
 }
 test "indexOf" {
     var t = [_]u8{0} ** 5;
-    try expect(TextBuffer.forTest("", &t).indexOf(Position{.x=0, .y=0}) == 0);
-    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=1, .y=0}) == 1);
-    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=2, .y=0}) == 1);
-    try expect(TextBuffer.forTest("a", &t).indexOf(Position{.x=0, .y=0}) == 0);
-    try expect(TextBuffer.forTest("ab", &t).indexOf(Position{.x=1, .y=0}) == 1);
-    try expect(TextBuffer.forTest("a\n", &t).indexOf(Position{.x=1, .y=0}) == 1);
-    try expect(TextBuffer.forTest("a\nb", &t).indexOf(Position{.x=0, .y=1}) == 2);
-    try expect(TextBuffer.forTest("a\n\nb", &t).indexOf(Position{.x=1, .y=2}) == 4);
-    try expect(TextBuffer.forTest("a\nb\n", &t).indexOf(Position{.x=0, .y=2}) == 4);
-    try expect(TextBuffer.forTest("a\n\nb", &t).indexOf(Position{.x=0, .y=2}) == 3);
-    try expect(TextBuffer.forTest("a\nb\nc", &t).indexOf(Position{.x=0, .y=2}) == 4);
+    try expect(Text.forTest("", &t).indexOf(Position{.x=0, .y=0}) == 0);
+    try expect(Text.forTest("a", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(Text.forTest("a", &t).indexOf(Position{.x=2, .y=0}) == 1);
+    try expect(Text.forTest("a", &t).indexOf(Position{.x=0, .y=0}) == 0);
+    try expect(Text.forTest("ab", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(Text.forTest("a\n", &t).indexOf(Position{.x=1, .y=0}) == 1);
+    try expect(Text.forTest("a\nb", &t).indexOf(Position{.x=0, .y=1}) == 2);
+    try expect(Text.forTest("a\n\nb", &t).indexOf(Position{.x=1, .y=2}) == 4);
+    try expect(Text.forTest("a\nb\n", &t).indexOf(Position{.x=0, .y=2}) == 4);
+    try expect(Text.forTest("a\n\nb", &t).indexOf(Position{.x=0, .y=2}) == 3);
+    try expect(Text.forTest("a\nb\nc", &t).indexOf(Position{.x=0, .y=2}) == 4);
 }
 test "rowLength" {
     var t = [_]u8{0} ** 5;
-    try expect(TextBuffer.forTest("", &t).rowLength(0) == 0);
-    try expect(TextBuffer.forTest("a", &t).rowLength(0) == 1);
-    try expect(TextBuffer.forTest("ab", &t).rowLength(0) == 2);
-    try expect(TextBuffer.forTest("\n", &t).rowLength(0) == 1);
-    try expect(TextBuffer.forTest("\n", &t).rowLength(1) == 0);
-    try expect(TextBuffer.forTest("\na", &t).rowLength(0) == 1);
-    try expect(TextBuffer.forTest("\na", &t).rowLength(1) == 1);
-    try expect(TextBuffer.forTest("\na\n", &t).rowLength(1) == 2);
-    try expect(TextBuffer.forTest("\n\n", &t).rowLength(1) == 1);
-    try expect(TextBuffer.forTest("\n\n", &t).rowLength(2) == 0);
-    try expect(TextBuffer.forTest("\n\na", &t).rowLength(2) == 1);
+    try expect(Text.forTest("", &t).rowLength(0) == 0);
+    try expect(Text.forTest("a", &t).rowLength(0) == 1);
+    try expect(Text.forTest("ab", &t).rowLength(0) == 2);
+    try expect(Text.forTest("\n", &t).rowLength(0) == 1);
+    try expect(Text.forTest("\n", &t).rowLength(1) == 0);
+    try expect(Text.forTest("\na", &t).rowLength(0) == 1);
+    try expect(Text.forTest("\na", &t).rowLength(1) == 1);
+    try expect(Text.forTest("\na\n", &t).rowLength(1) == 2);
+    try expect(Text.forTest("\n\n", &t).rowLength(1) == 1);
+    try expect(Text.forTest("\n\n", &t).rowLength(2) == 0);
+    try expect(Text.forTest("\n\na", &t).rowLength(2) == 1);
 }
 test "new" {
     var t = [_]u8{0} ** 5;
-    try expect(TextBuffer.forTest("", &t).length == 0);
-    try expect(TextBuffer.forTest("a", &t).length == 1);
+    try expect(Text.forTest("", &t).length == 0);
+    try expect(Text.forTest("a", &t).length == 1);
 }
-const TextBuffer = struct {
+const Text = struct {
     content: []u8,
     length: usize,
     cursor: Position,
@@ -78,7 +78,7 @@ const TextBuffer = struct {
     modified: bool,
     last_x: usize,
     page_y: usize,
-    fn rows(self: *const TextBuffer) usize {
+    fn rows(self: *const Text) usize {
         var n: usize = 0;
         var i: usize = 0;
         while (i < self.length) : (i+=1) {
@@ -89,7 +89,7 @@ const TextBuffer = struct {
         return n;
     }
     /// return the index of first charactern in given line
-    fn indexOfRowStart(self: *const TextBuffer, line: usize) usize {
+    fn indexOfRowStart(self: *const Text, line: usize) usize {
         if (line == 0) return 0;
 
         var n: usize = 0;
@@ -105,10 +105,10 @@ const TextBuffer = struct {
         if (n < line) return self.length;
         @panic("no more lines!");
     }
-    fn indexOfRowEnd(self: *const TextBuffer, line: usize) usize {
+    fn indexOfRowEnd(self: *const Text, line: usize) usize {
         return self.indexOfRowStart(line) + self.rowLength(line);
     }
-    fn nextNewLine(self: *const TextBuffer, index: usize) usize {
+    fn nextNewLine(self: *const Text, index: usize) usize {
         if (self.length == 0) return 0;
 
         var i = index;
@@ -119,7 +119,7 @@ const TextBuffer = struct {
         }
         return self.length;
     }
-    fn rowLength(self: *const TextBuffer, row: usize) usize {
+    fn rowLength(self: *const Text, row: usize) usize {
         if (self.length == 0) return 0;
 
         const row_start = self.indexOfRowStart(row);
@@ -127,7 +127,7 @@ const TextBuffer = struct {
         if (row_end > row_start) return row_end - row_start;
         return 0;
     }
-    fn indexOf(self: *TextBuffer, pos: Position) usize {
+    fn indexOf(self: *Text, pos: Position) usize {
         if (self.length == 0) return 0;
 
         var i = self.indexOfRowStart(pos.y);
@@ -137,12 +137,12 @@ const TextBuffer = struct {
         }
         return i + pos.x;
     }
-    fn cursorIndex(self: *TextBuffer) usize {
+    fn cursorIndex(self: *Text) usize {
         return self.indexOf(self.cursor);
     }
-    fn new(txt: []u8, len: usize) TextBuffer {
+    fn new(txt: []u8, len: usize) Text {
         assert(len <= txt.len);
-        return TextBuffer {
+        return Text {
             .content = txt,
             .length = len,
             .cursor = Position{ .x = 0, .y = 0 },
@@ -152,8 +152,8 @@ const TextBuffer = struct {
             .page_y = 0,
         };
     }
-    fn copy(orig: TextBuffer, txt: []u8) TextBuffer {
-        return TextBuffer {
+    fn copy(orig: Text, txt: []u8) Text {
+        return Text {
             .content = txt,
             .cursor = Position{ .x = orig.cursor.x, .y = orig.cursor.y },
             .length = orig.length,
@@ -163,8 +163,8 @@ const TextBuffer = struct {
             .page_y = orig.page_y,
         };
     }
-    fn forTest(comptime txt: []const u8, t: []u8) TextBuffer {
-        return TextBuffer {
+    fn forTest(comptime txt: []const u8, t: []u8) Text {
+        return Text {
             .content = literalToArray(txt, t),
             .length = txt.len,
             .cursor = Position{ .x = 0, .y = 0 },
@@ -207,7 +207,7 @@ pub const ControlKey = enum(u8) {
     }
 };
 
-pub fn loadFile(txt: TextBuffer, filepath: []const u8, allocator: Allocator) TextBuffer {
+pub fn loadFile(txt: Text, filepath: []const u8, allocator: Allocator) Text {
     var t = txt;
     t.filename = filepath;
     const file = std.fs.cwd().openFile(t.filename, .{ .read = true }) catch @panic("File open failed!");
@@ -221,7 +221,7 @@ pub fn loadFile(txt: TextBuffer, filepath: []const u8, allocator: Allocator) Tex
     message = "";
     return t;
 }
-pub fn saveFile(t: *TextBuffer, screen_content: []u8) !void {
+pub fn saveFile(t: *Text, screen_content: []u8) !void {
     if (modus == .edit and t.filename.len > 0) {
         const file = try std.fs.cwd().openFile(t.filename, .{ .write = true });
         defer file.close();
@@ -236,8 +236,8 @@ pub fn saveFile(t: *TextBuffer, screen_content: []u8) !void {
     }
 }
 pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
-    var text = TextBuffer.new("", 0);
-    var conf = TextBuffer.new("", 0);
+    var text = Text.new("", 0);
+    var conf = Text.new("", 0);
     var screen = ScreenBuffer.new();
     _ = term.updateWindowSize();
     if(filepath != null) text = loadFile(text, filepath.?, allocator);
@@ -297,11 +297,11 @@ inline fn setModus(mode: Mode) void {
     }
 }
 
-inline fn getCurrentText(text: *TextBuffer, cnf: *TextBuffer) *TextBuffer {
+inline fn getCurrentText(text: *Text, cnf: *Text) *Text {
     return if (modus == .edit) text else cnf;
 }
 
-pub fn processKey(text: *TextBuffer, cnf: *TextBuffer, screen_content: []u8, key: term.KeyCode, allocator: Allocator) void {
+pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCode, allocator: Allocator) void {
     var t = getCurrentText(text, cnf);
     var i: usize = 0;
     if (key.len == 1) {
@@ -404,19 +404,19 @@ fn bufTextCursor(pos: Position, page_y: usize, screen_content: []u8, screen_inde
     }
     return term.bufCursor(screen_pos, screen_content, screen_index);
 }
-fn bufCursor(txt: *TextBuffer, screen_content: []u8, screen_index: usize) usize {
+fn bufCursor(txt: *Text, screen_content: []u8, screen_index: usize) usize {
     return bufTextCursor(txt.cursor, txt.page_y, screen_content, screen_index);
 }
 fn setTextCursor(pos: Position, page_y: usize, allocator: Allocator) void {
     term.setCursor(positionOnScreen(pos, page_y), allocator);
 }
 
-inline fn mod(text: *TextBuffer) []const u8 {
+inline fn mod(text: *Text) []const u8 {
     return if (text.filename.len > 0 and text.modified) "*" else "";
 }
 
 pub var message: []const u8 = "READY.";
-inline fn bufStatusBar(txt: *TextBuffer, screen_content: []u8, screen_index: usize) usize {
+inline fn bufStatusBar(txt: *Text, screen_content: []u8, screen_index: usize) usize {
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
     const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
@@ -430,7 +430,7 @@ inline fn bufStatusBar(txt: *TextBuffer, screen_content: []u8, screen_index: usi
 }
 test "endOfPageIndex" {
     var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("", &t);
+    var txt = Text.forTest("", &t);
     try expect(endOfPageIndex(&txt) == 0);
 
     txt.content = literalToArray("a", &t);
@@ -440,10 +440,10 @@ test "endOfPageIndex" {
 inline fn textHeight() usize {
     return config.height - MENU_BAR_HEIGHT - STATUS_BAR_HEIGHT;
 }
-inline fn endOfPageIndex(txt: *TextBuffer) usize {
+inline fn endOfPageIndex(txt: *Text) usize {
     return txt.indexOfRowEnd(txt.page_y + textHeight() - 1);
 }
-inline fn bufText(txt: *TextBuffer, screen_content: []u8, screen_index: usize) usize {
+inline fn bufText(txt: *Text, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
     var i = term.bufWrite(term.CURSOR_SHOW, screen_content, screen_index);
     i = term.bufWrite(term.RESET_MODE, screen_content, i);
@@ -458,7 +458,7 @@ inline fn bufConf(conf: []const u8, screen_content: []u8, screen_index: usize) u
     var i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForegroundColor, screen_content, screen_index);
     return term.bufFillScreen(conf, screen_content, i, config.width, textHeight());
 }
-fn bufScreen(txt: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn bufScreen(txt: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     if (screen_content != null) {
         var i = bufMenuBar(screen_content.?, 0);
         i = bufText(txt, screen_content.?, i);
@@ -467,7 +467,7 @@ fn bufScreen(txt: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     }
 }
 
-fn writeKeyCodes(txt: *TextBuffer, screen_content: []u8, screen_index: usize, key: term.KeyCode) void {
+fn writeKeyCodes(txt: *Text, screen_content: []u8, screen_index: usize, key: term.KeyCode) void {
     assert(screen_content.len > screen_index);
     var i = bufKeyCodes(key, Position{
         .x = config.width - keyCodeOffset + 10, 
@@ -477,13 +477,13 @@ fn writeKeyCodes(txt: *TextBuffer, screen_content: []u8, screen_index: usize, ke
     term.write(screen_content[0..i]);
 }
 
-fn shiftLeft(t: *TextBuffer, pos: Position) void {
+fn shiftLeft(t: *Text, pos: Position) void {
     var i = t.indexOf(pos);
     while(i < t.length) : (i += 1) {
         t.content[i-1] = t.content[i];
     }
 }
-fn shiftRight(t: *TextBuffer, pos: Position) void {
+fn shiftRight(t: *Text, pos: Position) void {
     var i = t.length;
     var ci = t.indexOf(pos);
     while(i > ci) : (i -= 1) {
@@ -491,7 +491,7 @@ fn shiftRight(t: *TextBuffer, pos: Position) void {
     }
 }
 
-fn extendBuffer(t: *TextBuffer, allocator: Allocator) void {
+fn extendBuffer(t: *Text, allocator: Allocator) void {
     const length = math.multipleOf(config.chunk, t.content.len) + config.chunk;
     var new_content = allocator.alloc(u8, length) catch @panic(OOM);
 
@@ -502,13 +502,13 @@ fn extendBuffer(t: *TextBuffer, allocator: Allocator) void {
     allocator.free(t.content);
     t.content = new_content;
 }
-fn extendBufferIfNeeded(t: *TextBuffer, allocator: Allocator) void {
+fn extendBufferIfNeeded(t: *Text, allocator: Allocator) void {
     if(t.content.len == 0 or t.cursorIndex() >= t.content.len) {
         extendBuffer(t, allocator);
     }
 }
 
-fn cursorLeft(txt: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn cursorLeft(txt: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     var t = txt;
     var update = false;
     if (t.cursor.x > 0) {
@@ -532,7 +532,7 @@ fn cursorLeft(txt: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
 }
 test "cursorRight" {
     var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("", &t);
+    var txt = Text.forTest("", &t);
     var screen_content = [_]u8{0} ** 9000;
     const key = term.KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
     try expect(txt.cursor.x == 0);
@@ -556,7 +556,7 @@ test "cursorRight" {
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 1);
 }
-fn cursorRight(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn cursorRight(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     if (t.length == 0) return;
 
     if (t.cursor.x < t.rowLength(t.cursor.y)) {
@@ -574,7 +574,7 @@ fn cursorRight(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
         bufScreen(t, screen_content, key);
     }
 }
-fn newLine(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) void {
+fn newLine(t: *Text, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) void {
     extendBufferIfNeeded(t, allocator);
     var i = t.cursorIndex();
     if (i < t.length) shiftRight(t, t.cursor);
@@ -587,7 +587,7 @@ fn newLine(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: 
 test "writeChar" {
     const allocator = std.testing.allocator;
     var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("", &t);
+    var txt = Text.forTest("", &t);
     const key = term.KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 0);
@@ -601,7 +601,7 @@ test "writeChar" {
     try expect(txt.length == 2);
     try expect(txt.content[1] == 'b');
 }
-fn writeChar(char: u8, t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) void {
+fn writeChar(char: u8, t: *Text, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) void {
     extendBufferIfNeeded(t, allocator);
     const i = t.cursorIndex();
     
@@ -611,7 +611,7 @@ fn writeChar(char: u8, t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode,
     t.length += 1;
     cursorRight(t, screen_content, key);
 }
-fn backspace(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn backspace(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     if (t.cursorIndex() > 0) {
         if (t.cursor.x == 0) {
             const pos = t.cursor;
@@ -627,28 +627,28 @@ fn backspace(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     }
 }
 
-fn toLastX(txt: *TextBuffer, index: usize) usize {
+fn toLastX(txt: *Text, index: usize) usize {
     return math.min(usize, index + txt.last_x, nextBreak(txt, index, 1) - 1);
 }
 test "scrollDown" {
     var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("a\nb\nc", &t);
+    var txt = Text.forTest("a\nb\nc", &t);
     txt.page_y = 1;
     scrollDown(&txt);
     try expect(txt.page_y == 0);
 }
-fn scrollDown(t: *TextBuffer) void {
+fn scrollDown(t: *Text) void {
     if (t.page_y > 0) {
         t.page_y -= 1;
     }
 }
 test "scrollUp" {
     var t = [_]u8{0} ** 5;
-    var txt = TextBuffer.forTest("a\nb\nc", &t);
+    var txt = Text.forTest("a\nb\nc", &t);
     scrollUp(&txt);
     try expect(txt.page_y == 1);
 }
-fn scrollUp(t: *TextBuffer) void {
+fn scrollUp(t: *Text) void {
     if (t.page_y < t.rows()) {
         t.page_y += 1;
     }
@@ -657,7 +657,7 @@ fn scrollUp(t: *TextBuffer) void {
 test "cursorUp" {
     const allocator = std.testing.allocator;
     var t = [_]u8{0} ** 4;
-    var txt = TextBuffer.forTest("a\na\n", &t);
+    var txt = Text.forTest("a\na\n", &t);
     txt.cursor = Position{.x=0, .y=2};
     try expect(txt.cursorIndex() == 4);
     var screen_content = [_]u8{0} ** 9000;
@@ -667,7 +667,7 @@ test "cursorUp" {
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 1);
 }
-fn cursorUp(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn cursorUp(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     var i = t.cursorIndex();
     if (t.cursor.y > 0) {
         if (positionOnScreen(t.cursor, t.page_y).y == MENU_BAR_HEIGHT and t.page_y > 0) {
@@ -683,7 +683,7 @@ fn cursorUp(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
     }
 }
 
-fn cursorDown(t: *TextBuffer, screen_content: ?[]u8, key: term.KeyCode) void {
+fn cursorDown(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
     if (t.cursor.y < t.rows()) {
         t.cursor.y += 1;
         const row_len = t.rowLength(t.cursor.y);
