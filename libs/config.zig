@@ -114,7 +114,7 @@ test "actions" {
 }
 
 pub const Section = enum(u8) { 
-    key_binding = 0, key_codes = 1, actions = 2, builtin = 3,
+    vars = 0, key_binding = 1, key_codes = 2, actions = 3, builtin = 4,
 };
 
 pub fn findSection(str: []const u8) ?Section {
