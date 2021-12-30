@@ -180,18 +180,14 @@ fn getWindowSize(fd: std.fs.File) !os.winsize {
     }
 }
 
-pub const KeyCode = struct {
-    code: [4]u8, len: usize
-};
-
 const stdin = std.io.getStdIn();
-pub fn readKey() KeyCode {
+pub fn readKey() config.KeyCode {
     var buf: [4]u8 = undefined;
     const len = stdin.reader().read(&buf) catch |err| {
         print("StdIn read() failed! error: {s}", .{err});
-        return KeyCode{ .code = buf, .len = 0 };
+        return config.KeyCode{ .code = buf, .len = 0 };
     };
-    return KeyCode{ .code = buf, .len = len };
+    return config.KeyCode{ .code = buf, .len = len };
 }
 
 pub fn nonBlock() void {

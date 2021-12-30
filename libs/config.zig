@@ -23,21 +23,78 @@ var data: []u8 = "";
 var current_filename: []const u8 = undefined;
 pub const Modifier = enum(u8) { control = 'C', none = ' ', };
 
-pub const Key = struct {
-    modifier: Modifier,
-    char: u8,
-};
 
+pub const KeyCode = struct {
+    code: [4]u8, len: usize
+};
+pub const Keys = struct {
+    modifier: Modifier,
+    key: KeyCode,
+};
+pub const Action = struct { 
+    name: []const u8,
+    keys: Keys,
+};
 pub const chunk = mem.page_size;
 pub const templ = template.CONFIG;
 pub var width: u16 = 80;
 pub var height: u16 = 25;
-pub var quit = Key { .modifier = Modifier.control, .char = 'q'};
-pub var save = Key { .modifier = Modifier.control, .char = 's'};
-pub var new_line = Key { .modifier = Modifier.none, .char = ENTER};
 
 pub inline fn ctrlKey(key: u8) u8 {
     return key & 0x1f;
+}
+inline fn key1(char: u8) KeyCode {
+    return KeyCode{ .code = [4]u8{ char, 0, 0, 0, }, .len = 1};
+}
+inline fn key2(c1: u8, c2: u8) KeyCode {
+    return KeyCode{ .code = [4]u8{ c1, c2, 0, 0, }, .len = 2};
+}
+inline fn key3(c1: u8, c2: u8, c3: u8) KeyCode {
+    return KeyCode{ .code = [4]u8{ c1, c2, c3, 0, }, .len = 3};
+}
+inline fn key4(c1: u8, c2: u8, c3: u8, c4: u8) KeyCode {
+    return KeyCode{ .code = [4]u8{ c1, c2, c3, c4, }, .len = 4};
+}
+
+pub var actions = [_]Action{
+    Action{ .name = "quit", .keys = Keys{ .modifier = Modifier.control, .key = key1('q')}},
+    Action{ .name = "save", .keys = Keys{ .modifier = Modifier.control, .key = key1('s')}},
+    Action{ .name = "new_line", .keys = Keys{ .modifier = Modifier.none, .key = key1(ENTER)}},
+    Action{ .name = "toggle_conig", .keys = Keys{ .modifier = Modifier.none, .key = key3(0x1b, 0x4f, 0x50)}},
+};
+pub const Builtin = enum(usize) { 
+    quit = 0, save = 1, new_line = 2, toggle_config = 3,
+};
+pub inline fn keysOf(bi: Builtin) Keys {
+    return actions[@enumToInt(bi)].keys;
+}
+pub inline fn keyOf(bi: Builtin) KeyCode {
+    return keysOf(bi).key;
+}
+pub inline fn codeOf(bi: Builtin, default: u8) [4]u8 {
+    return keysOf(bi).key.code;
+}
+pub inline fn lenOf(bi: Builtin, default: u8) [4]u8 {
+    return keysOf(bi).key.len;
+}
+pub inline fn charOf(bi: Builtin, default: u8) u8 {
+    const keys = keysOf(bi);
+    if (keys.modifier == Modifier.control and keys.key.len == 1) return ctrlKey(keys.key.code[0]);
+    if (keys.modifier == Modifier.none and keys.key.len == 1) return keys.key.code[0];
+    return default;
+}
+
+pub fn findAction(name: []const u8) ?Action {
+    for (actions) |action, i| {
+        if (mem.eql(u8, name, action.name)) return actions[i];
+    }
+    return null;
+}
+test "actions" {
+    try expect(findAction("") == null);
+    try expect(mem.eql(u8, findAction("quit").?.name, "quit"));
+    try expect(mem.eql(u8, findAction("save").?.name, "save"));
+    try expect(mem.eql(u8, findAction("new_line").?.name, "new_line"));
 }
 
 pub const Section = enum(u8) { 
@@ -90,15 +147,15 @@ fn parseKeyBinding(str: []const u8) void {
 }
 
 test "parseKeyBinding" {
-    parseKeyBinding(""); 
+    parseKeyBinding("");
     try expect(quit.modifier == Modifier.control);
     try expect(quit.char == 'q');
 
-    parseKeyBinding("C-x: @quit"); 
+    parseKeyBinding("C-x: @quit");
     try expect(quit.modifier == Modifier.control);
     try expect(quit.char == 'x');
 
-    parseKeyBinding("c: @quit"); 
+    parseKeyBinding("c: @quit");
     try expect(quit.modifier == Modifier.none);
     try expect(quit.char == 'c');
 }
@@ -119,23 +176,6 @@ test "eqlIgnoreCase" {
     try std.testing.expect(eqlSection("HEy💩Ho!", "hey💩ho!"));
     try std.testing.expect(!eqlSection("hElLo!", "hello! "));
     try std.testing.expect(!eqlSection("hElLo!", "helro!"));
-}
-
-pub fn keyFrom(str: []const u8) Key {
-    var mod: Modifier = undefined;
-    if (str[0] == @enumToInt(Modifier.control)) {
-        mod = Modifier.control;
-    } else {
-        mod = Modifier.none;
-    }
-    var c = str[str.len-1];
-    return Key{ .modifier = mod, .char = c };
-}
-
-pub fn keyChar(key: Key, default: u8) u8 {
-    if (key.modifier == Modifier.control) return ctrlKey(key.char);
-    if (key.modifier == Modifier.none) return key.char;
-    return default;
 }
 
 test "literalToArray" {
