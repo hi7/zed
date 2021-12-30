@@ -180,10 +180,6 @@ fn getWindowSize(fd: std.fs.File) !os.winsize {
     }
 }
 
-pub inline fn ctrlKey(key: u8) u8 {
-    return key & 0x1f;
-}
-
 pub const KeyCode = struct {
     code: [4]u8, len: usize
 };

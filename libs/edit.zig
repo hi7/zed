@@ -269,7 +269,7 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     var key: term.KeyCode = undefined;
     var current_text = getCurrentText(&text, &conf);
     bufScreen(current_text, screen.content, key);
-    while(key.code[0] != term.ctrlKey('q')) {
+    while(key.code[0] != quitKey()) {
         key = term.readKey();
         if(key.len > 0) {
             processKey(&text, &conf, screen.content, key, allocator);
@@ -283,6 +283,11 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
     term.write(term.CURSOR_HOME);
 
     files.free(allocator);
+}
+
+/// builtin fn
+inline fn quitKey() u8 {
+    return config.keyChar(config.quit, config.ctrlKey('q'));
 }
 
 inline fn toggleModus(mode: Mode) void {
@@ -308,13 +313,13 @@ inline fn writeFilenameChar(char: u8, txt: *Text, screen_content: []u8, screen_i
         input_filename[input_filename_index] = char;
         input_filename_index += 1;
         txt.filename = input_filename[0..input_filename_index];
-        message = if(files.exists(txt.filename)) "extists!" else "";
+        message = if(files.exists(txt.filename)) "exists!" else "";
         return bufStatusBar(txt, screen_content, screen_index);
     }
     return screen_index;
 }
 inline fn filenameEntered(txt: *Text, screen_content: []u8, screen_index: usize, allocator: Allocator) usize {
-    if(files.exists(txt.filename)) message = "file extists: overwriting!";
+    if(files.exists(txt.filename)) message = "exists: overwriting!";
     enter_filename = false;
     const file = std.fs.cwd().createFile(txt.filename, .{}) catch @panic("Failed: createFile");
     file.close();
@@ -324,12 +329,32 @@ inline fn filenameEntered(txt: *Text, screen_content: []u8, screen_index: usize,
     return bufStatusBar(txt, screen_content, screen_index);
 }
 
+/// builtin fn
+fn toggleConfig(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCode) *Text {
+    var result = text;
+    if (!enter_filename) {
+        toggleModus(.conf);
+        result = getCurrentText(text, cnf);
+        bufScreen(result, screen_content, key);
+    }
+    return result;
+}
+/// builtin fn
+fn save(txt: *Text, screen_content: []u8, allocator: Allocator) void {
+    if (txt.filename.len == 0) {
+        enter_filename = true;
+    } else {
+        saveFile(txt, screen_content) catch |err| {
+            message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
+        };
+    }
+}
 pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCode, allocator: Allocator) void {
     var t = getCurrentText(text, cnf);
     var i: usize = 0;
     if (key.len == 1) {
         const c = key.code[0];
-        if (c == 0x0d) { // new line
+        if (c == config.keyChar(config.new_line, 0x0d)) {
             if (enter_filename) {
                 i = filenameEntered(t, screen_content, i, allocator);
             } else {
@@ -342,14 +367,8 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCo
                 writeChar(c, t, screen_content, key, allocator);
             }
         }
-        if (c == term.ctrlKey('s')) {
-            if (t.filename.len == 0) {
-                enter_filename = true;
-            } else {
-                saveFile(t, screen_content) catch |err| {
-                    message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
-                };
-            }
+        if (c == config.keyChar(config.save, config.ctrlKey('s'))) {
+            save(t, screen_content, allocator);
         }
         if (c == @enumToInt(ControlKey.backspace)) backspace(t, screen_content, key);
     } else if (key.len == 3) {
@@ -362,9 +381,7 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCo
         if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) 
             cursorLeft(t, screen_content, key);
         if (key.code[0] == 0x1b and key.code[1] == 0x4f and key.code[2] == 0x50) {
-            toggleModus(.conf);
-            t = getCurrentText(text, cnf);
-            bufScreen(t, screen_content, key);
+            t = toggleConfig(text, cnf, screen_content, key);
         }
     }
     if (key.len > 0) {
@@ -375,6 +392,8 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCo
 var themeForeground = Color.cyan;
 var themeBackground = Color.blue;
 var themeHighlight = Color.white;
+var themeWarn = Color.yellow;
+var themeError = Color.red;
 fn bufMenuBarMode(screen_content: []u8, screen_index: usize) usize {
     return term.bufAttributes(Scope.foreground, themeForeground, 
         Scope.background, themeBackground, screen_content, screen_index);
@@ -382,8 +401,12 @@ fn bufMenuBarMode(screen_content: []u8, screen_index: usize) usize {
 fn bufMenuBarHighlightMode(screen_content: []u8, screen_index: usize) usize {
     return term.bufAttributes(Scope.foreground, themeHighlight, Scope.background, themeBackground, screen_content, screen_index);
 }
-fn bufStatusBarMode(screen_content: []u8, screen_index: usize) usize {
+fn bufStatusBarHighlightMode(screen_content: []u8, screen_index: usize) usize {
     return term.bufAttributes(Scope.foreground, themeHighlight, 
+        Scope.background, themeBackground, screen_content, screen_index);
+}
+fn bufStatusBarMode(screen_content: []u8, screen_index: usize) usize {
+    return term.bufAttributes(Scope.foreground, themeForeground, 
         Scope.background, themeBackground, screen_content, screen_index);
 }
 fn repeatChar(char: u8, count: u16) void {
@@ -461,14 +484,30 @@ pub var message: []const u8 = "READY.";
 inline fn bufStatusBar(txt: *Text, screen_content: []u8, screen_index: usize) usize {
     var i = bufStatusBarMode(screen_content, screen_index);
     i = term.bufCursor(Position{ .x = 0, .y = config.height - 1}, screen_content, i);
-    const stats = std.fmt.bufPrint(screen_content[i..], "L{d}:C{d} {s}{s} {s}", 
-        .{txt.cursor.y + 1, txt.cursor.x + 1, txt.filename, modifiedChar(txt), message}) catch @panic(OOM);
-    i += stats.len;
-    const offset = config.width - keyCodeOffset;
-    i = term.bufWriteRepeat(' ', offset - stats.len, screen_content, i);
 
-    i = term.bufCursor(Position{ .x = offset, .y = config.height - 1}, screen_content, i);
-    return term.bufWrite("key code:            ", screen_content, i);
+    screen_content[i] = 'L'; i += 1;
+    i = term.bufAttribute(Scope.foreground, themeHighlight, screen_content, i);
+    const row = std.fmt.bufPrint(screen_content[i..], "{d}", .{txt.cursor.y + 1}) catch @panic(OOM);
+    i += row.len;
+    i = term.bufAttribute(Scope.foreground, themeForeground, screen_content, i);
+    screen_content[i] = ':'; i += 1;
+    screen_content[i] = 'C'; i += 1;
+    i = term.bufAttribute(Scope.foreground, themeHighlight, screen_content, i);
+    const col = std.fmt.bufPrint(screen_content[i..], "{d} ", .{txt.cursor.x + 1}) catch @panic(OOM);
+    i += col.len;
+
+    const filename = std.fmt.bufPrint(screen_content[i..], "{s}{s} ", 
+        .{txt.filename, modifiedChar(txt)}) catch @panic(OOM);
+    i += filename.len;
+    i = term.bufAttribute(Scope.foreground, themeWarn, screen_content, i);
+    const msg = std.fmt.bufPrint(screen_content[i..], "{s}", .{message}) catch @panic(OOM);
+    i += msg.len;
+    const offset = config.width - keyCodeOffset;
+    i = term.bufWriteRepeat(' ', offset - 3 - row.len - col.len - filename.len - msg.len, screen_content, i);
+
+    i = term.bufAttribute(Scope.foreground, themeForeground, screen_content, i);
+    i = term.bufWrite("key code:            ", screen_content, i);
+    return term.bufCursor(Position{ .x = offset, .y = config.height - 1}, screen_content, i);
 }
 test "endOfPageIndex" {
     var t = [_]u8{0} ** 5;
@@ -752,10 +791,10 @@ fn cursorDown(t: *Text, screen_content: ?[]u8, key: term.KeyCode) void {
 
 const NOBR = "Failed: bufPrint";
 fn bufKeyCodes(key: term.KeyCode, pos: Position, screen_content: []u8, screen_index: usize) usize {
-    var i = bufStatusBarMode(screen_content, screen_index);
+    var i = bufStatusBarHighlightMode(screen_content, screen_index);
     i = term.bufCursor(pos, screen_content, i);
     i = term.bufWrite("           ", screen_content, i);
-    i = term.bufAttribute(Scope.foreground, themeForeground, screen_content, i);
+    i = term.bufAttribute(Scope.foreground, themeHighlight, screen_content, i);
     i = term.bufCursor(pos, screen_content, i);
     if(key.len == 0) {
         return i;
