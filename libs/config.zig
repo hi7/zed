@@ -46,6 +46,10 @@ pub inline fn ctrlKey(key: u8) u8 {
 inline fn key1(char: u8) KeyCode {
     return KeyCode{ .code = [4]u8{ char, 0, 0, 0, }, .len = 1};
 }
+test "key1" {
+    try expect(key1('q').code[0] == 'q');
+    try expect(key1('a').len == 1);
+}
 inline fn key2(c1: u8, c2: u8) KeyCode {
     return KeyCode{ .code = [4]u8{ c1, c2, 0, 0, }, .len = 2};
 }
@@ -62,31 +66,43 @@ pub var actions = [_]Action{
     Action{ .name = "new_line", .keys = Keys{ .modifier = Modifier.none, .key = key1(ENTER)}},
     Action{ .name = "toggle_conig", .keys = Keys{ .modifier = Modifier.none, .key = key3(0x1b, 0x4f, 0x50)}},
 };
+test "actions" {
+    try expect(mem.eql(u8, actionOf(Builtin.quit).name, "quit"));
+    try expect(modifierOf(Builtin.quit) == Modifier.control);
+    try expect(charOf(Builtin.quit, 'x') == ctrlKey('q'));
+}
 pub const Builtin = enum(usize) { 
     quit = 0, save = 1, new_line = 2, toggle_config = 3,
 };
-pub inline fn keysOf(bi: Builtin) Keys {
-    return actions[@enumToInt(bi)].keys;
+pub inline fn actionOf(bi: Builtin) *Action {
+    return &actions[@enumToInt(bi)];
 }
-pub inline fn keyOf(bi: Builtin) KeyCode {
-    return keysOf(bi).key;
+pub inline fn keysOf(bi: Builtin) *Keys {
+    return &actionOf(bi).keys;
 }
-pub inline fn codeOf(bi: Builtin, default: u8) [4]u8 {
-    return keysOf(bi).key.code;
+pub inline fn keyOf(bi: Builtin) *KeyCode {
+    return &keysOf(bi).key;
+}
+pub inline fn codeOf(bi: Builtin, default: u8) *[4]u8 {
+    return &keysOf(bi).key.code;
 }
 pub inline fn lenOf(bi: Builtin, default: u8) [4]u8 {
     return keysOf(bi).key.len;
 }
+/// return char code includung modifier encoding
 pub inline fn charOf(bi: Builtin, default: u8) u8 {
     const keys = keysOf(bi);
     if (keys.modifier == Modifier.control and keys.key.len == 1) return ctrlKey(keys.key.code[0]);
     if (keys.modifier == Modifier.none and keys.key.len == 1) return keys.key.code[0];
     return default;
 }
+pub inline fn modifierOf(bi: Builtin) Modifier {
+    return keysOf(bi).modifier;
+}
 
-pub fn findAction(name: []const u8) ?Action {
+pub fn findAction(name: []const u8) ?*Action {
     for (actions) |action, i| {
-        if (mem.eql(u8, name, action.name)) return actions[i];
+        if (mem.eql(u8, name, action.name)) return &actions[i];
     }
     return null;
 }
@@ -118,46 +134,55 @@ test "findSection" {
 }
 
 fn parseKeyBinding(str: []const u8) void {
+    if (str.len == 0) return;
+
     const colon_index = mem.indexOf(u8, str, ":");
     if (colon_index != null) {
         var key = str[0..colon_index.?];
         const dash_index = mem.indexOf(u8, key, "-");
+        const action_str = trim(str[colon_index.?+1..]);
+        var action = if(action_str.len > 0 and action_str[0] == '@') findAction(action_str[1..]) else null;
         if (dash_index != null) {
             const d_i = dash_index.?;
             var mod = key[0..d_i];
             if (mod.len == 1) {
                 const mc = mod[0];
-                if (mc == 'C') quit.modifier = Modifier.control;
+                if (mc == 'C') {
+                    if (action != null) action.?.keys.modifier = Modifier.control;
+                }
             }
 
             if (key.len > d_i) {
                 var char = key[d_i+1..];
                 if (char.len == 1) {
-                    quit.char = char[0];
+                    if (action != null) {
+                        action.?.keys.key = key1(char[0]);
+                    }
                 }
             }
         } else {
             if (key.len == 1) {
-                quit.modifier = Modifier.none;
-                quit.char = key[0];
+                if (action != null) {
+                    action.?.keys.modifier = Modifier.none;
+                    action.?.keys.key = key1(key[0]);
+                }
             }
         }
-        var action = trim(str[colon_index.?..]);
     }
 }
 
 test "parseKeyBinding" {
     parseKeyBinding("");
-    try expect(quit.modifier == Modifier.control);
-    try expect(quit.char == 'q');
+    try expect(modifierOf(Builtin.quit) == Modifier.control);
+    try expect(charOf(Builtin.quit, 'x') == ctrlKey('q'));
 
     parseKeyBinding("C-x: @quit");
-    try expect(quit.modifier == Modifier.control);
-    try expect(quit.char == 'x');
+    try expect(modifierOf(Builtin.quit) == Modifier.control);
+    try expect(charOf(Builtin.quit, 'q') == ctrlKey('x'));
 
     parseKeyBinding("c: @quit");
-    try expect(quit.modifier == Modifier.none);
-    try expect(quit.char == 'c');
+    try expect(modifierOf(Builtin.quit) == Modifier.none);
+    try expect(charOf(Builtin.quit, 'q') == 'c');
 }
 
 /// Compares strings `a` and `b` case insensitively (ignore underscore of section_enum) and returns whether they are equal.
@@ -224,17 +249,19 @@ pub fn nextLine(text: []u8, index: usize) []u8 {
 }
 
 test "parse" {
-    quit.char = 'q';
+    try expect(modifierOf(Builtin.save) == Modifier.control);
+    try expect(charOf(Builtin.save, 's') == ctrlKey('s'));
+
     var conf = [_]u8{0} ** 255;
     parse(literalToArray("", &conf));
     parse(literalToArray("* KEY BINDING", &conf));
-    try expect(quit.char == 'q');
+    try expect(charOf(Builtin.save, 's') == ctrlKey('s'));
 
-    parse(literalToArray("* KEY BINDING\nC-x: @quit", &conf));
-    try expect(quit.char == 'x');
+    parse(literalToArray("* KEY BINDING\nC-w: @save", &conf));
+    try expect(charOf(Builtin.save, 's') == ctrlKey('w'));
 
-    parse(literalToArray("* KEY BINDING\nC-y: @quit", &conf));
-    try expect(quit.char == 'y');
+    parse(literalToArray("* KEY BINDING\nC-r: @save", &conf));
+    try expect(charOf(Builtin.save, 's') == ctrlKey('r'));
 }
 pub fn parse(conf: []u8) void {
     var i: usize = 0;
