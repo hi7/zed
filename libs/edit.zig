@@ -165,7 +165,7 @@ const Text = struct {
     }
     fn forTest(comptime txt: []const u8, t: []u8) Text {
         return Text {
-            .content = literalToArray(txt, t),
+            .content = config.literalToArray(txt, t),
             .length = txt.len,
             .cursor = Position{ .x = 0, .y = 0 },
             .filename = "",
@@ -175,16 +175,6 @@ const Text = struct {
         };
     }
 };
-test "literalToArray" {
-    var result = [_]u8{0} ** 3;
-    var r = literalToArray("abc", &result);
-    try expect(mem.eql(u8, "abc", r));
-}
-fn literalToArray(comptime source: []const u8, dest: []u8) []u8 {
-    mem.copy(u8, dest, source);
-
-    return dest;
-}
 
 const ScreenBuffer = struct {
     content: []u8,
@@ -260,7 +250,7 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
         cf.close();
         conf.filename = home_config_file;
         conf.content = allocator.alloc(u8, config.templ.len) catch @panic(OOM);
-        conf.content = literalToArray(config.templ, conf.content);
+        conf.content = config.literalToArray(config.templ, conf.content);
         conf.length = config.templ.len;
         saveFile(&conf, screen.content) catch @panic("failed: save file");
     }
@@ -514,7 +504,7 @@ test "endOfPageIndex" {
     var txt = Text.forTest("", &t);
     try expect(endOfPageIndex(&txt) == 0);
 
-    txt.content = literalToArray("a", &t);
+    txt.content = config.literalToArray("a", &t);
     txt.length = 1;
     try expect(endOfPageIndex(&txt) == 1);
 }
@@ -626,13 +616,13 @@ test "cursorRight" {
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 0);
 
-    txt.content = literalToArray("a", &t);
+    txt.content = config.literalToArray("a", &t);
     txt.length = 1;
     cursorRight(&txt, null, key);
     try expect(txt.cursor.x == 1);
     try expect(txt.cursor.y == 0);
 
-    txt.content = literalToArray("a\n", &t);
+    txt.content = config.literalToArray("a\n", &t);
     txt.length = 2;
     txt.cursor.x = 1;
     txt.cursor.y = 0;
@@ -685,6 +675,8 @@ test "writeChar" {
     writeChar('b', &txt, null, key, allocator);
     try expect(txt.length == 2);
     try expect(txt.content[1] == 'b');
+
+    allocator.free(txt.content);
 }
 fn writeChar(char: u8, t: *Text, screen_content: ?[]u8, key: term.KeyCode, allocator: Allocator) void {
     extendBufferIfNeeded(t, allocator);
