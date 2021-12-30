@@ -354,7 +354,7 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: term.KeyCo
     var i: usize = 0;
     if (key.len == 1) {
         const c = key.code[0];
-        if (c == config.keyChar(config.new_line, 0x0d)) {
+        if (c == config.keyChar(config.new_line, config.ENTER)) {
             if (enter_filename) {
                 i = filenameEntered(t, screen_content, i, allocator);
             } else {

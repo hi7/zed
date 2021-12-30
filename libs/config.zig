@@ -9,6 +9,7 @@ const FileNotFound = File.OpenError.FileNotFound;
 
 pub const APPNAME = "zed";
 pub const FILENAME = "config.txt";
+pub const ENTER = 0x0d;
 // Errors
 const GADD = "fs.getAppDataDir() error";
 const OOM = "Out of memory error";
@@ -28,7 +29,7 @@ pub var width: u16 = 80;
 pub var height: u16 = 25;
 pub var quit = Key { .modifier = Modifier.control, .char = 'q'};
 pub var save = Key { .modifier = Modifier.control, .char = 's'};
-pub var new_line = Key { .modifier = Modifier.none, .char = 0x0d};
+pub var new_line = Key { .modifier = Modifier.none, .char = ENTER};
 
 pub inline fn ctrlKey(key: u8) u8 {
     return key & 0x1f;
