@@ -5,18 +5,18 @@ pub const CONFIG =
     \\#  ZED CONFIG FILE  #
     \\#####################
     \\* VAR
-    \\$zig.home: ~/tools/zig-macos-x86_64-0.8.1/
+    \\$zig.home: ~/tools/zig-linux-x86_64-0.8.1/
+    \\
+    \\* KEY CODES
+    \\# key name: codes
+    \\F1:  1b 5b 5b 41
+    \\F12: 1b 0a de
     \\
     \\* KEY BINDING
     \\# key: action
     \\F1: @help
     \\C-q: @quit
     \\C-s: @save
-    \\
-    \\* KEY CODES
-    \\# key name: codes
-    \\F1:  1b 4f 50
-    \\F12: 1b 0a de
     \\
     \\* ACTIONS
     \\# name: command

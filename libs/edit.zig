@@ -206,8 +206,8 @@ pub fn loadFile(txt: Text, filepath: []const u8, allocator: Allocator) Text {
     defer file.close();
     t.length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
-    const expected_length = math.multipleOf(config.chunk, t.length) + config.chunk;
-    t.content = allocator.alloc(u8, expected_length) catch @panic(OOM);
+    const length = math.multipleOf(config.chunk, t.length) + config.chunk;
+    t.content = allocator.alloc(u8, length) catch @panic(OOM);
     const bytes_read = file.readAll(t.content) catch @panic("File too large!");
     assert(bytes_read == t.length);
     message = "";
@@ -257,11 +257,12 @@ pub fn loop(filepath: ?[]u8, allocator: Allocator) !void {
         saveFile(&conf, screen.content) catch @panic("failed: save file");
     }
     defer allocator.free(conf.content);
-
+    config.parse(conf.content);
+    
     var key: KeyCode = undefined;
     var current_text = getCurrentText(&text, &conf);
     bufScreen(current_text, screen.content, key);
-    while(key.code[0] != quitKey()) {
+    while(key.data[0] != quitKey()) {
         key = term.readKey();
         if(key.len > 0) {
             processKey(&text, &conf, screen.content, key, allocator);
@@ -345,7 +346,7 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, a
     var t = getCurrentText(text, cnf);
     var i: usize = 0;
     if (key.len == 1) {
-        const c = key.code[0];
+        const c = key.data[0];
         if (c == config.charOf(Builtin.new_line, config.ENTER)) {
             if (enter_filename) {
                 i = filenameEntered(t, screen_content, i, allocator);
@@ -361,21 +362,21 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, a
         }
         if (c == config.charOf(Builtin.save, config.ctrlKey('s'))) {
             save(t, screen_content, allocator);
+            if (modus == .conf) config.parse(cnf.content);
         }
         if (c == @enumToInt(ControlKey.backspace)) backspace(t, screen_content, key);
     } else if (key.len == 3) {
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x41) 
+        if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x41) 
             cursorUp(t, screen_content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x42) 
+        if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x42) 
             cursorDown(t, screen_content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x43) 
+        if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x43) 
             cursorRight(t, screen_content, key);
-        if (key.code[0] == 0x1b and key.code[1] == 0x5b and key.code[2] == 0x44) 
+        if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x44) 
             cursorLeft(t, screen_content, key);
     }
     const tc = config.keyOf(Builtin.toggle_config);
-    if (tc.len == 3 and key.code[0] == tc.code[0] 
-        and key.code[1] == tc.code[1] and key.code[2] == tc.code[2]) {
+    if (key.len == tc.len and key.data[0] == tc.data[0] and key.data[1] == tc.data[1] and key.data[2] == tc.data[2] and key.data[3] == tc.data[3]) {
         t = toggle_config(text, cnf, screen_content, key);
     }
 
@@ -614,7 +615,7 @@ test "cursorRight" {
     var t = [_]u8{0} ** 5;
     var txt = Text.forTest("", &t);
     var screen_content = [_]u8{0} ** 9000;
-    const key = KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
+    const key = KeyCode{ .data = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 0);
     cursorRight(&txt, null, key);
@@ -668,7 +669,7 @@ test "writeChar" {
     const allocator = std.testing.allocator;
     var t = [_]u8{0} ** 5;
     var txt = Text.forTest("", &t);
-    const key = KeyCode{ .code = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
+    const key = KeyCode{ .data = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 0);
     writeChar('a', &txt, null, key, allocator);
@@ -743,7 +744,7 @@ test "cursorUp" {
     txt.cursor = Position{.x=0, .y=2};
     try expect(txt.cursorIndex() == 4);
     var screen_content = [_]u8{0} ** 9000;
-    const key = KeyCode{ .code = [_]u8{ 0x1b, 0x5b, 0x41, 0x00}, .len = 3};
+    const key = KeyCode{ .data = [_]u8{ 0x1b, 0x5b, 0x41, 0x00}, .len = 3};
     cursorUp(&txt, null, key);
     try expect(txt.cursorIndex() == 2);
     try expect(txt.cursor.x == 0);
@@ -797,19 +798,19 @@ fn bufKeyCodes(key: KeyCode, pos: Position, screen_content: []u8, screen_index: 
         return i;
     }
     if(key.len == 1) {
-        const written = std.fmt.bufPrint(screen_content[i..], "{x}", .{key.code[0]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x}", .{key.data[0]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 2) {
-        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x}", .{key.code[0], key.code[1]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x}", .{key.data[0], key.data[1]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 3) {
-        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x}", .{key.code[0], key.code[1], key.code[2]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x}", .{key.data[0], key.data[1], key.data[2]}) catch @panic(NOBR);
         i += written.len;
     }
     if(key.len == 4) {
-        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x} {x}", .{key.code[0], key.code[1], key.code[2], key.code[3]}) catch @panic(NOBR);
+        const written = std.fmt.bufPrint(screen_content[i..], "{x} {x} {x} {x}", .{key.data[0], key.data[1], key.data[2], key.data[3]}) catch @panic(NOBR);
         i += written.len;
     }
     return term.bufWrite(term.RESET_MODE, screen_content, i);

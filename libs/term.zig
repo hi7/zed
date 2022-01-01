@@ -185,9 +185,9 @@ pub fn readKey() config.KeyCode {
     var buf: [4]u8 = undefined;
     const len = stdin.reader().read(&buf) catch |err| {
         print("StdIn read() failed! error: {s}", .{err});
-        return config.KeyCode{ .code = buf, .len = 0 };
+        return config.KeyCode{ .data = buf, .len = 0 };
     };
-    return config.KeyCode{ .code = buf, .len = len };
+    return config.KeyCode{ .data = buf, .len = len };
 }
 
 pub fn nonBlock() void {
