@@ -79,7 +79,7 @@ pub const Builtin = enum(usize) {
     quit = 0, save = 1, new_line = 2, toggle_config = 3,
 };
 pub var codes = [_]KeyMapping{
-    KeyMapping{ .key=Key.esc, .code=KeyCode{.data=[4]u8{0x1b, 0x5b, 0x5b, 0x39}, .len=4}},
+    KeyMapping{ .key=Key.esc, .code=KeyCode{.data=[4]u8{0x1b, 0x00, 0x00, 0x00}, .len=1}},
     KeyMapping{ .key=Key.f1, .code=KeyCode{.data=[4]u8{0x1b, 0x5b, 0x5b, 0x40}, .len=4}},
     KeyMapping{ .key=Key.f2, .code=KeyCode{.data=[4]u8{0x1b, 0x5b, 0x5b, 0x42}, .len=4}},
     KeyMapping{ .key=Key.f3, .code=KeyCode{.data=[4]u8{0x1b, 0x5b, 0x5b, 0x43}, .len=4}},

@@ -311,6 +311,14 @@ inline fn writeFilenameChar(char: u8, txt: *Text, screen_content: []u8, screen_i
     }
     return screen_index;
 }
+inline fn backspaceFilename(txt: *Text, screen_content: []u8, screen_index: usize) usize {
+    if (input_filename_index > 0) {
+        input_filename_index -= 1;
+        txt.filename = input_filename[0..input_filename_index];
+        return bufStatusBar(txt, screen_content, screen_index);
+    }
+    return screen_index;
+}
 inline fn filenameEntered(txt: *Text, screen_content: []u8, screen_index: usize, allocator: Allocator) usize {
     if(files.exists(txt.filename)) message = "exists: overwriting!";
     enter_filename = false;
@@ -364,7 +372,13 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, a
             save(t, screen_content, allocator);
             if (modus == .conf) config.parse(cnf.content);
         }
-        if (c == @enumToInt(ControlKey.backspace)) backspace(t, screen_content, key);
+        if (c == @enumToInt(ControlKey.backspace)) {
+            if (enter_filename) {
+                i = backspaceFilename(t, screen_content, i);
+            } else {
+                backspace(t, screen_content, key);
+            }
+        }
     } else if (key.len == 3) {
         if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x41) 
             cursorUp(t, screen_content, key);
