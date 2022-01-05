@@ -331,7 +331,7 @@ inline fn filenameEntered(txt: *Text, screen_content: []u8, screen_index: usize,
 }
 
 /// builtin fn
-fn toggle_config(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode) *Text {
+fn toggleConfig(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode) *Text {
     var result = text;
     if (!enter_filename) {
         toggleModus(.conf);
@@ -350,10 +350,24 @@ fn save(txt: *Text, screen_content: []u8, allocator: Allocator) void {
         };
     }
 }
+
+inline fn isKeyBuiltin(key: KeyCode, builtin: Builtin) bool {
+    const tc = config.keyOf(builtin);
+    if (key.len == 0 or key.len != tc.len) return false;
+    var i: usize = 0;
+    while(i < key.len) : (i += 1) {
+        if (key.data[i] != tc.data[i]) return false;
+    }
+    return true;
+}
+
 pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, allocator: Allocator) void {
     var t = getCurrentText(text, cnf);
     var i: usize = 0;
-    if (key.len == 1) {
+    if (isKeyBuiltin(key, Builtin.toggle_config)) {
+        message = "TOGGLE";
+        t = toggleConfig(text, cnf, screen_content, key);
+    } else if (key.len == 1) {
         const c = key.data[0];
         if (c == config.charOf(Builtin.new_line, config.ENTER)) {
             if (enter_filename) {
@@ -388,10 +402,6 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, a
             cursorRight(t, screen_content, key);
         if (key.data[0] == 0x1b and key.data[1] == 0x5b and key.data[2] == 0x44) 
             cursorLeft(t, screen_content, key);
-    }
-    const tc = config.keyOf(Builtin.toggle_config);
-    if (key.len == tc.len and key.data[0] == tc.data[0] and key.data[1] == tc.data[1] and key.data[2] == tc.data[2] and key.data[3] == tc.data[3]) {
-        t = toggle_config(text, cnf, screen_content, key);
     }
 
     if (key.len > 0) {
