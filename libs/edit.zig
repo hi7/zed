@@ -365,7 +365,6 @@ pub fn processKey(text: *Text, cnf: *Text, screen_content: []u8, key: KeyCode, a
     var t = getCurrentText(text, cnf);
     var i: usize = 0;
     if (isKeyBuiltin(key, Builtin.toggle_config)) {
-        message = "TOGGLE";
         t = toggleConfig(text, cnf, screen_content, key);
     } else if (key.len == 1) {
         const c = key.data[0];
