@@ -113,7 +113,7 @@ test "findKey" {
 pub inline fn mappingOf(k: Key) *KeyMapping {
     return &codes[@enumToInt(k)];
 }
-pub inline fn KeyCodeOf(kc: KeyCodes) *KeyCode {
+pub inline fn KeyCodeOf(kc: KeyMapping) *KeyCode {
     return &mappingOf(kc).code;
 }
 pub inline fn actionOf(bi: Builtin) *Action {
@@ -125,10 +125,10 @@ pub inline fn keysOf(bi: Builtin) *KeyCombination {
 pub inline fn keyOf(bi: Builtin) *KeyCode {
     return &keysOf(bi).code;
 }
-pub inline fn codeOf(bi: Builtin, default: u8) *[4]u8 {
+pub inline fn codeOf(bi: Builtin) *[4]u8 {
     return &keysOf(bi).key.code;
 }
-pub inline fn lenOf(bi: Builtin, default: u8) [4]u8 {
+pub inline fn lenOf(bi: Builtin) [4]u8 {
     return keysOf(bi).key.len;
 }
 /// return char code includung modifier encoding

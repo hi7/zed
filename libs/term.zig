@@ -37,8 +37,6 @@ pub const Position = struct {
 pub fn bufWrite(data: []const u8, buf: []u8, index: usize) usize {
     var di: usize = 0;
     var bi: usize = index;
-    var x: usize = 0;
-    var clear = false;
     while(di < data.len and bi < buf.len) {
         buf[bi] = data[di];
         di += 1;
@@ -165,9 +163,9 @@ pub fn updateWindowSize() bool {
     }
     return changed;
 }
-fn getWindowSize(fd: std.fs.File) !os.winsize {
+fn getWindowSize(fd: std.fs.File) !os.linux.winsize {
     while (true) {
-        var size: os.winsize = undefined;
+        var size: os.linux.winsize = undefined;
         switch (os.errno(system.ioctl(fd.handle, os.TIOCGWINSZ, @ptrToInt(&size)))) {
             0 => return size,
             os.EINTR => continue,

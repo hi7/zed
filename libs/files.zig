@@ -5,7 +5,7 @@ const mem = std.mem;
 const fs = std.fs;
 const assert = std.debug.assert;
 const File = fs.File;
-const Allocator = *std.mem.Allocator;
+const Allocator = std.mem.Allocator;
 // Errors
 const OOM = "Out of memory error";
 

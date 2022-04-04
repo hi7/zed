@@ -7,7 +7,7 @@ const mem = std.mem;
 const print = std.debug.print;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
-const Allocator = *std.mem.Allocator;
+const Allocator = std.mem.Allocator;
 const Color = term.Color;
 const Scope = term.Scope;
 const Position = term.Position;
@@ -202,7 +202,7 @@ pub const ControlKey = enum(u8) {
 pub fn loadFile(txt: Text, filepath: []const u8, allocator: Allocator) Text {
     var t = txt;
     t.filename = filepath;
-    const file = std.fs.cwd().openFile(t.filename, .{ .read = true }) catch @panic("File open failed!");
+    const file = std.fs.cwd().openFile(t.filename, .{ .mode = .read_only }) catch @panic("File open failed!");
     defer file.close();
     t.length = file.getEndPos() catch @panic("file seek error!");
     // extent to multiple of chunk and add one chunk
@@ -214,7 +214,7 @@ pub fn loadFile(txt: Text, filepath: []const u8, allocator: Allocator) Text {
     return t;
 }
 pub fn saveFile(t: *Text, screen_content: []u8) !void {
-    const file = try std.fs.cwd().openFile(t.filename, .{ .write = true });
+    const file = try std.fs.cwd().openFile(t.filename, .{ .mode = .write_only });
     defer file.close();
     _ = try file.write(t.content[0..t.length]);
     _ = try file.setEndPos(t.length);
@@ -435,13 +435,6 @@ fn repeatChar(char: u8, count: u16) void {
     }
 }
 
-fn showMessage(message: []const u8, allocator: Allocator) void {
-    setStatusBarMode(allocator);
-    term.setCursor(50, height - 1, allocator);
-    term.write(message);
-    term.resetMode();
-}
-
 fn bufShortCut(key: []const u8, label: []const u8, screen_content: []u8, screen_index: usize) usize {
     var i = bufMenuBarHighlightMode(screen_content, screen_index);
     i = term.bufWrite(key, screen_content, i);
@@ -555,7 +548,7 @@ inline fn bufText(txt: *Text, screen_content: []u8, screen_index: usize) usize {
 inline fn bufConf(conf: []const u8, screen_content: []u8, screen_index: usize) usize {
     assert(screen_content.len > screen_index);
     // var i = term.bufWrite(term.CURSOR_HIDE, screen_content, screen_index);
-    var i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForegroundColor, screen_content, screen_index);
+    var i = term.bufAttributeMode(term.Mode.reset, term.Scope.foreground, themeForeground, screen_content, screen_index);
     return term.bufFillScreen(conf, screen_content, i, config.width, textHeight());
 }
 fn bufScreen(txt: *Text, screen_content: ?[]u8, key: KeyCode) void {
@@ -637,7 +630,6 @@ fn cursorLeft(txt: *Text, screen_content: ?[]u8, key: KeyCode) void {
 test "cursorRight" {
     var t = [_]u8{0} ** 5;
     var txt = Text.forTest("", &t);
-    var screen_content = [_]u8{0} ** 9000;
     const key = KeyCode{ .data = [_]u8{ 0x61, 0x00, 0x00, 0x00}, .len = 1};
     try expect(txt.cursor.x == 0);
     try expect(txt.cursor.y == 0);
@@ -733,9 +725,6 @@ fn backspace(t: *Text, screen_content: ?[]u8, key: KeyCode) void {
     }
 }
 
-fn toLastX(txt: *Text, index: usize) usize {
-    return math.min(usize, index + txt.last_x, nextBreak(txt, index, 1) - 1);
-}
 test "scrollDown" {
     var t = [_]u8{0} ** 5;
     var txt = Text.forTest("a\nb\nc", &t);
@@ -761,12 +750,10 @@ fn scrollUp(t: *Text) void {
 }
 
 test "cursorUp" {
-    const allocator = std.testing.allocator;
     var t = [_]u8{0} ** 4;
     var txt = Text.forTest("a\na\n", &t);
     txt.cursor = Position{.x=0, .y=2};
     try expect(txt.cursorIndex() == 4);
-    var screen_content = [_]u8{0} ** 9000;
     const key = KeyCode{ .data = [_]u8{ 0x1b, 0x5b, 0x41, 0x00}, .len = 3};
     cursorUp(&txt, null, key);
     try expect(txt.cursorIndex() == 2);
@@ -774,7 +761,7 @@ test "cursorUp" {
     try expect(txt.cursor.y == 1);
 }
 fn cursorUp(t: *Text, screen_content: ?[]u8, key: KeyCode) void {
-    var i = t.cursorIndex();
+    _ = t.cursorIndex();
     if (t.cursor.y > 0) {
         if (positionOnScreen(t.cursor, t.page_y).y == MENU_BAR_HEIGHT and t.page_y > 0) {
             scrollDown(t);
