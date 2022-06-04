@@ -134,8 +134,8 @@ pub fn rawMode(timeout: ?u8) void {
     raw.cflag |= (@as(tcflag, system.CS8));
     raw.lflag &= ~(@as(tcflag, system.ECHO) | @as(tcflag, system.ICANON) | @as(tcflag, system.IEXTEN) | @as(tcflag, system.ISIG));
     if(timeout != null) {
-        raw.cc[system.VMIN] = 0; // add timeout for read()
-        raw.cc[system.VTIME] = timeout.?;// x/10 seconds
+        raw.cc[system.V.MIN] = 0; // add timeout for read()
+        raw.cc[system.V.TIME] = timeout.?;// x/10 seconds
     } 
     os.tcsetattr(os.STDIN_FILENO, .FLUSH, raw) catch |err| {
         print("Error: {s}\n", .{err});
@@ -166,13 +166,14 @@ pub fn updateWindowSize() bool {
 fn getWindowSize(fd: std.fs.File) !os.linux.winsize {
     while (true) {
         var size: os.linux.winsize = undefined;
-        switch (os.errno(system.ioctl(fd.handle, os.TIOCGWINSZ, @ptrToInt(&size)))) {
-            0 => return size,
-            os.EINTR => continue,
-            os.EBADF => unreachable,
-            os.EFAULT => unreachable,
-            os.EINVAL => return error.Unsupported,
-            os.ENOTTY => return error.Unsupported,
+        const TIOCGWINSZ = 0x5413;
+        switch (os.errno(system.ioctl(fd.handle, TIOCGWINSZ, @ptrToInt(&size)))) {
+            .SUCCESS => return size,
+            .INTR => continue,
+            .BADF => unreachable,
+            .FAULT => unreachable,
+            .INVAL => return error.Unsupported,
+            .NOTTY => return error.Unsupported,
             else => |err| return os.unexpectedErrno(err),
         }
     }
