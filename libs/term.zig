@@ -123,7 +123,7 @@ var orig_mode: system.termios = undefined;
 /// timeout for read(): x/10 seconds, null means wait forever for input
 pub fn rawMode(timeout: ?u8) void {
     orig_mode = os.tcgetattr(os.STDIN_FILENO) catch |err| {
-        print("Error: {s}\n", .{err});
+        print("Error: {}\n", .{err});
         @panic("tcgetattr failed!");
     };
     var raw = orig_mode;
@@ -138,13 +138,13 @@ pub fn rawMode(timeout: ?u8) void {
         raw.cc[system.V.TIME] = timeout.?;// x/10 seconds
     } 
     os.tcsetattr(os.STDIN_FILENO, .FLUSH, raw) catch |err| {
-        print("Error: {s}\n", .{err});
+        print("Error: {}\n", .{err});
         @panic("tcsetattr failed!");
     };
 }
 pub fn cookedMode() void {
     os.tcsetattr(os.STDIN_FILENO, .FLUSH, orig_mode) catch |err| {
-        print("Error: {s}\n", .{err});
+        print("Error: {}\n", .{err});
         @panic("tcsetattr failed!");
     };
 }
@@ -183,7 +183,7 @@ const stdin = std.io.getStdIn();
 pub fn readKey() config.KeyCode {
     var buf: [4]u8 = undefined;
     const len = stdin.reader().read(&buf) catch |err| {
-        print("StdIn read() failed! error: {s}", .{err});
+        print("StdIn read() failed! error: {}", .{err});
         return config.KeyCode{ .data = buf, .len = 0 };
     };
     return config.KeyCode{ .data = buf, .len = len };
@@ -204,7 +204,7 @@ test "bufOptional" {
     var buf = [_]u8{' ', ' '};
     try expect(bufOptional(null, &buf, 0) == 0);
 
-    const index = bufOptional(090, &buf, 0);
+    const index = bufOptional(90, &buf, 0);
     try expect(index == 2);
     try expect(equals("90", &buf));
 }
@@ -227,7 +227,7 @@ test "optional" {
     const test_allocator = std.testing.allocator;
     try expect(optional(null, test_allocator).len == 0);
 
-    const opt = optional(007, test_allocator);
+    const opt = optional(7, test_allocator);
     defer test_allocator.free(opt);
     try expect(equals("7", opt));
 }

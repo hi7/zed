@@ -9,7 +9,7 @@ pub fn main() anyerror!void {
     defer {
         const leaked = gpa.deinit();
         if (leaked) expect(false) catch |err| {
-            std.debug.print("Error: {s}", .{err});
+            std.debug.print("Error: {}", .{err});
             @panic("Memory leak!");
         };
     }

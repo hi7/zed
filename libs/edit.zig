@@ -325,7 +325,7 @@ inline fn filenameEntered(txt: *Text, screen_content: []u8, screen_index: usize,
     const file = std.fs.cwd().createFile(txt.filename, .{}) catch @panic("Failed: createFile");
     file.close();
     saveFile(txt, screen_content) catch |err| {
-        message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
+        message = std.fmt.allocPrint(allocator, "Can't save: {}", .{ err }) catch @panic(OOM);
     };
     return bufStatusBar(txt, screen_content, screen_index);
 }
@@ -346,7 +346,7 @@ fn save(txt: *Text, screen_content: []u8, allocator: Allocator) void {
         enter_filename = true;
     } else {
         saveFile(txt, screen_content) catch |err| {
-            message = std.fmt.allocPrint(allocator, "Can't save: {s}", .{ err }) catch @panic(OOM);
+            message = std.fmt.allocPrint(allocator, "Can't save: {}", .{ err }) catch @panic(OOM);
         };
     }
 }
